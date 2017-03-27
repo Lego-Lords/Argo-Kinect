@@ -2,7 +2,7 @@
 //
 
 #include "stdafx.h"
-
+#include "PCDReader.h"
 
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
@@ -295,13 +295,17 @@ private:
 
 int main(int argc, char* argv[])
 {
-	try {
+	PCDReader pcdReader;
+	pcdReader.readPCD();
+	std::cout << "party" << std::endl;
+	cin.get();
+	/*try {
 		Kinect kinect;
 		kinect.run();
 	}
 	catch (std::exception& ex) {
 		std::cout << ex.what() << std::endl;
-	}
+	}*/
 
 	return 0;
 }
