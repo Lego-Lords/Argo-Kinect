@@ -295,17 +295,13 @@ private:
 
 int main(int argc, char* argv[])
 {
-	PCDReader pcdReader;
-	pcdReader.readPCD();
-	std::cout << "party" << std::endl;
-	cin.get();
-	/*try {
+	try {
 		Kinect kinect;
 		kinect.run();
 	}
 	catch (std::exception& ex) {
 		std::cout << ex.what() << std::endl;
-	}*/
+	}
 
 	return 0;
 }

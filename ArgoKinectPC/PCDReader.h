@@ -9,6 +9,7 @@ class PCDReader
 public:
 	PCDReader();
 	~PCDReader();
-	void readPCD(std::string modelStepFileName);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr readPCD(std::string modelStepFileName);
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr getPCD();
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
 };
