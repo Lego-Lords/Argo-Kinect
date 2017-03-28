@@ -2,9 +2,8 @@
 //
 
 #include "stdafx.h"
+#include "PCDReader.h"
 #include "ICPCompare.h"
-
-
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
 
@@ -294,7 +293,7 @@ private:
 	}
 };
 
-int shit(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
 	ICPCompare icpCompare;
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
