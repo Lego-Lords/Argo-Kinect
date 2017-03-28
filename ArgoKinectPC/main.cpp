@@ -3,7 +3,7 @@
 
 #include "stdafx.h"
 #include "PCDReader.h"
-
+#include "ICPCompare.h"
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
 
@@ -295,13 +295,20 @@ private:
 
 int main(int argc, char* argv[])
 {
-	try {
+	ICPCompare icpCompare;
+
+	//icpCompare.comparePCD(); DITO PASUKAN NG PCD NA ICOCOMPARE
+
+	/*try {
 		Kinect kinect;
 		kinect.run();
 	}
 	catch (std::exception& ex) {
 		std::cout << ex.what() << std::endl;
-	}
+	}*/
+
+
+	cin.get();
 
 	return 0;
 }

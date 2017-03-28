@@ -24,7 +24,11 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+<<<<<<< HEAD
     <ClInclude Include="PCDReader.h">
+=======
+    <ClInclude Include="ICPCompare.h">
+>>>>>>> ce11d88f4bfbb663ae4b55f8954adb937521115f
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -32,10 +36,17 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="source.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+<<<<<<< HEAD
     <ClCompile Include="PCDReader.cpp">
+=======
+    <ClCompile Include="ICPCompare.cpp">
+>>>>>>> ce11d88f4bfbb663ae4b55f8954adb937521115f
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
