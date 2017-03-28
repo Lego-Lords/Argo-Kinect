@@ -297,8 +297,10 @@ private:
 int shit(int argc, char* argv[])
 {
 	ICPCompare icpCompare;
+	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
 
-	//icpCompare.comparePCD(); DITO PASUKAN NG PCD NA ICOCOMPARE
+	//DITO PASUKAN NG PCD NA ICOCOMPARE
+	//icp = icpCompare.comparePCD(); 
 
 	/*try {
 		Kinect kinect;
