@@ -21,9 +21,9 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{36590BB6-5219-4579-8AD4-0909CC1A6D27}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>ArgoKinectPCL</RootNamespace>
+    <RootNamespace>ArgoKinectPC</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
-    <ProjectName>ArgoKinectPCL</ProjectName>
+    <ProjectName>ArgoKinectPC</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -59,31 +59,31 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="OpenNI.props" />
-    <Import Project="PCL.props" />
-    <Import Project="KinectSDK.props" />
-    <Import Project="MySQL.props" />
+    <Import Project="config\OpenNI.props" />
+    <Import Project="config\PCL.props" />
+    <Import Project="config\KinectSDK.props" />
+    <Import Project="config\MySQL.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="OpenNI.props" />
-    <Import Project="PCL.props" />
-    <Import Project="KinectSDK.props" />
-    <Import Project="MySQL.props" />
+    <Import Project="config\OpenNI.props" />
+    <Import Project="config\PCL.props" />
+    <Import Project="config\KinectSDK.props" />
+    <Import Project="config\MySQL.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="OpenNI.props" />
-    <Import Project="PCL.props" />
-    <Import Project="KinectSDK.props" />
-    <Import Project="MySQL.props" />
+    <Import Project="config\OpenNI.props" />
+    <Import Project="config\PCL.props" />
+    <Import Project="config\KinectSDK.props" />
+    <Import Project="config\MySQL.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="OpenNI.props" />
-    <Import Project="PCL.props" />
-    <Import Project="KinectSDK.props" />
-    <Import Project="MySQL.props" />
+    <Import Project="config\OpenNI.props" />
+    <Import Project="config\PCL.props" />
+    <Import Project="config\KinectSDK.props" />
+    <Import Project="config\MySQL.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -163,9 +163,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Text Include="ReadMe.txt" />
-  </ItemGroup>
-  <ItemGroup>
+    <ClInclude Include="Kinect.h" />
+    <ClInclude Include="Segmenter.h" />
     <ClInclude Include="SQLConnect.h" />
     <ClInclude Include="PCDReader.h" />
     <ClInclude Include="ICPCompare.h" />
@@ -174,7 +173,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ICPCompare.cpp" />
+    <ClCompile Include="Kinect.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="OpenNISimple.cpp" />
+    <ClCompile Include="Segmenter.cpp" />
     <ClCompile Include="PCDReader.cpp" />
     <ClCompile Include="source.cpp" />
     <ClCompile Include="SQLConnect.cpp" />

@@ -1,298 +1,25 @@
-// PLCTry.cpp : Defines the entry point for the console application.
-//
-
 #include "stdafx.h"
-#include "PCDReader.h"
-#include "ICPCompare.h"
+#include "Kinect.h"
+
 #include <wrl/client.h>
 #include "SQLConnect.h"
 using namespace Microsoft::WRL;
 
-// Error Check
-#define ERROR_CHECK( ret )                                        \
-    if( FAILED( ret ) ){                                          \
-        std::stringstream ss;                                     \
-        ss << "failed " #ret " " << std::hex << ret << std::endl; \
-        throw std::runtime_error( ss.str().c_str() );             \
-    }
-
-class Kinect
+int main(int argc, char* argv[])
 {
-private:
-	// Sensor
-	ComPtr<IKinectSensor> kinect;
 
-	// Coordinate Mapper
-	ComPtr<ICoordinateMapper> coordinateMapper;
-
-	// Reader
-	ComPtr<IColorFrameReader> colorFrameReader;
-	ComPtr<IDepthFrameReader> depthFrameReader;
-
-	// Color Buffer
-	std::vector<BYTE> colorBuffer;
-	int colorWidth;
-	int colorHeight;
-	unsigned int colorBytesPerPixel;
-
-	// Depth Buffer
-	std::vector<UINT16> depthBuffer;
-	int depthWidth;
-	int depthHeight;
-	unsigned int depthBytesPerPixel;
-
-	// PCL
-	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud;
-
-public:
-	// Constructor
-	Kinect()
-	{
-		// Initialize
-		initialize();
+	try {
+		Kinect kinect;
+		kinect.run();
 	}
-
-	// Destructor
-	~Kinect()
-	{
-		// Finalize
-		finalize();
+	catch (std::exception& ex) {
+		std::cout << ex.what() << std::endl;
 	}
+	cin.get();
 
-	// Processing
-	void run() {
-		while (!viewer->wasStopped()) {
-			// Update Data
-			update();
+	return 0;
+}
 
-			// Draw Data
-			draw();
-
-			// Show Data
-			show();
-		}
-	}
-
-private:
-	// Initialize
-	void initialize()
-	{
-		// Initialize Sensor
-		initializeSensor();
-
-		// Initialize Color
-		initializeColor();
-
-		// Initialize Depth
-		initializeDepth();
-
-		// Initialize Point Cloud
-		initializePointCloud();
-	}
-
-	// Initialize Sensor
-	inline void initializeSensor()
-	{
-		// Open Sensor
-		ERROR_CHECK(GetDefaultKinectSensor(&kinect));
-
-		ERROR_CHECK(kinect->Open());
-
-		// Check Open
-		BOOLEAN isOpen = FALSE;
-		ERROR_CHECK(kinect->get_IsOpen(&isOpen));
-		if (!isOpen) {
-			throw std::runtime_error("failed IKinectSensor::get_IsOpen( &isOpen )");
-		}
-
-		// Retrieve Coordinate Mapper
-		ERROR_CHECK(kinect->get_CoordinateMapper(&coordinateMapper));
-	}
-
-	// Initialize Color
-	inline void initializeColor()
-	{
-		// Open Color Reader
-		ComPtr<IColorFrameSource> colorFrameSource;
-		ERROR_CHECK(kinect->get_ColorFrameSource(&colorFrameSource));
-		ERROR_CHECK(colorFrameSource->OpenReader(&colorFrameReader));
-
-		// Retrieve Color Description
-		ComPtr<IFrameDescription> colorFrameDescription;
-		ERROR_CHECK(colorFrameSource->CreateFrameDescription(ColorImageFormat::ColorImageFormat_Bgra, &colorFrameDescription));
-		ERROR_CHECK(colorFrameDescription->get_Width(&colorWidth)); // 1920
-		ERROR_CHECK(colorFrameDescription->get_Height(&colorHeight)); // 1080
-		ERROR_CHECK(colorFrameDescription->get_BytesPerPixel(&colorBytesPerPixel)); // 4
-
-																					// Allocation Color Buffer
-		colorBuffer.resize(colorWidth * colorHeight * colorBytesPerPixel);
-	}
-
-	// Initialize Depth
-	inline void initializeDepth()
-	{
-		// Open Depth Reader
-		ComPtr<IDepthFrameSource> depthFrameSource;
-		ERROR_CHECK(kinect->get_DepthFrameSource(&depthFrameSource));
-		ERROR_CHECK(depthFrameSource->OpenReader(&depthFrameReader));
-
-		// Retrieve Depth Description
-		ComPtr<IFrameDescription> depthFrameDescription;
-		ERROR_CHECK(depthFrameSource->get_FrameDescription(&depthFrameDescription));
-		ERROR_CHECK(depthFrameDescription->get_Width(&depthWidth)); // 512
-		ERROR_CHECK(depthFrameDescription->get_Height(&depthHeight)); // 424
-		ERROR_CHECK(depthFrameDescription->get_BytesPerPixel(&depthBytesPerPixel)); // 2
-
-																					// Allocation Depth Buffer
-		depthBuffer.resize(depthWidth * depthHeight);
-	}
-
-	// Initialize Point Cloud
-	inline void initializePointCloud()
-	{
-		// Create Point Cloud
-		cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
-		cloud->width = static_cast<uint32_t>(depthWidth);
-		cloud->height = static_cast<uint32_t>(depthHeight);
-		cloud->points.resize(cloud->height * cloud->width);
-		cloud->is_dense = false;
-
-		// Create PCLVisualizer
-		viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("Point Cloud Viewer");
-
-		// Initialize camera position
-		viewer->setCameraPosition(0.0, 0.0, -2.5, 0.0, 0.0, 0.0);
-
-		// Add Coordinate System
-		viewer->addCoordinateSystem(0.1);
-	}
-
-	// Finalize
-	void finalize()
-	{
-		// Close Sensor
-		if (kinect != nullptr) {
-			kinect->Close();
-		}
-	}
-
-	// Update Data
-	void update()
-	{
-		// Update Color
-		updateColor();
-
-		// Update Depth
-		updateDepth();
-
-		// Update Point Cloud
-		updatePointCloud();
-	}
-
-	// Update Color
-	inline void updateColor()
-	{
-		// Retrieve Color Frame
-		ComPtr<IColorFrame> colorFrame;
-		const HRESULT ret = colorFrameReader->AcquireLatestFrame(&colorFrame);
-		if (FAILED(ret)) {
-			return;
-		}
-
-		// Convert Format ( YUY2 -> BGRA )
-		ERROR_CHECK(colorFrame->CopyConvertedFrameDataToArray(static_cast<UINT>(colorBuffer.size()), &colorBuffer[0], ColorImageFormat::ColorImageFormat_Bgra));
-	}
-
-	// Update Depth
-	inline void updateDepth()
-	{
-		// Retrieve Depth Frame
-		ComPtr<IDepthFrame> depthFrame;
-		const HRESULT ret = depthFrameReader->AcquireLatestFrame(&depthFrame);
-		if (FAILED(ret)) {
-			return;
-		}
-
-		// Retrieve Depth Data
-		ERROR_CHECK(depthFrame->CopyFrameDataToArray(static_cast<UINT>(depthBuffer.size()), &depthBuffer[0]));
-	}
-
-	// Update Point Cloud
-	inline void updatePointCloud()
-	{
-		// Reset Point Cloud
-		cloud->clear();
-
-		// Convert to Point Cloud
-		for (int depthY = 0; depthY < depthHeight; depthY++) {
-			for (int depthX = 0; depthX < depthWidth; depthX++) {
-				pcl::PointXYZRGBA point;
-
-				// Retrieve Mapped Coordinates
-				DepthSpacePoint depthSpacePoint = { static_cast<float>(depthX), static_cast<float>(depthY) };
-				UINT16 depth = depthBuffer[depthY * depthWidth + depthX];
-				ColorSpacePoint colorSpacePoint = { 0.0f, 0.0f };
-				ERROR_CHECK(coordinateMapper->MapDepthPointToColorSpace(depthSpacePoint, depth, &colorSpacePoint));
-
-				// Set Color to Point
-				int colorX = static_cast<int>(colorSpacePoint.X + 0.5f);
-				int colorY = static_cast<int>(colorSpacePoint.Y + 0.5f);
-				if ((0 <= colorX) && (colorX < colorWidth) && (0 <= colorY) && (colorY < colorHeight)) {
-					unsigned int colorIndex = (colorY * colorWidth + colorX) * colorBytesPerPixel;
-					point.b = colorBuffer[colorIndex + 0];
-					point.g = colorBuffer[colorIndex + 1];
-					point.r = colorBuffer[colorIndex + 2];
-					point.a = colorBuffer[colorIndex + 3];
-				}
-
-				// Retrieve Mapped Coordinates
-				CameraSpacePoint cameraSpacePoint = { 0.0f, 0.0f, 0.0f };
-				ERROR_CHECK(coordinateMapper->MapDepthPointToCameraSpace(depthSpacePoint, depth, &cameraSpacePoint));
-
-				// Set Depth to Point
-				if ((0 <= colorX) && (colorX < colorWidth) && (0 <= colorY) && (colorY < colorHeight)) {
-					point.x = cameraSpacePoint.X;
-					point.y = cameraSpacePoint.Y;
-					point.z = cameraSpacePoint.Z;
-				}
-
-				// Set Point to Point Cloud
-				cloud->push_back(point);
-			}
-		}
-	}
-
-	// Draw Data
-	void draw()
-	{
-		// Draw Point Cloud
-		drawPointCloud();
-	}
-
-	// Draw Point Cloud
-	inline void drawPointCloud()
-	{
-		// Update Point Cloud
-		if (!viewer->updatePointCloud(cloud, "cloud")) {
-			viewer->addPointCloud(cloud, "cloud");
-		}
-	}
-
-	// Show Data
-	void show()
-	{
-		// Show Point Cloud
-		showPointCloud();
-	}
-
-	// Show Point Cloud
-	inline void showPointCloud()
-	{
-		// Update Viwer
-		viewer->spinOnce();
-	}
-};
 
 void sqlShit()
 {
@@ -304,84 +31,84 @@ void sqlShit()
 
 	cout << x << endl;
 	cout << y << endl;
-
-}
-
-int main(int argc, char* argv[])
-{
-	ICPCompare icpCompare;
-	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
-
-	PCDReader pcdReader;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pcin = pcdReader.readPCD("monkey.pcd");
-	/*pcl::PointCloud<pcl::PointXYZ>::Ptr pcin(new pcl::PointCloud<pcl::PointXYZ>);
-	 //Fill in the CloudIn data
-	pcin->width = 100;
-	pcin->height = 50;
-	pcin->is_dense = false;
-	pcin->points.resize(pcin->width * pcin->height);
-	for (size_t i = 0; i < pcin->points.size(); ++i)
-	{
-		pcin->points[i].x = 1024 * rand() / (RAND_MAX + 1.0f);
-		pcin->points[i].y = 1024 * rand() / (RAND_MAX + 1.0f);
-		pcin->points[i].z = 1024 * rand() / (RAND_MAX + 1.0f);
-	}*/
-	//pcl::PointCloud<pcl::PointXYZ>::Ptr pcin = pcdReader.readPCD("snowcat_step_1.pcd");
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pcout = pcdReader.readPCD("snowcat_step_3.pcd");
-	//DITO PASUKAN NG PCD NA ICOCOMPARE
-	icp = icpCompare.comparePCD(pcin, pcout);
-	int x = icp.hasConverged();
-	//icp.hasConverged();
-	//cout << x << icp.getMaximumIterations() << endl;
-	cout << x << x << endl;
-	//VIEW THE SHIT
-	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
-	// Create PCLVisualizer
-	viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("Point Cloud Viewer");
-
-	// Initialize camera position
-	viewer->setCameraPosition(0.0, 0.0, -100, 0.0, 0.0, 0.0);
-
-	// Add Coordinate System
-	viewer->addCoordinateSystem(0.1);
-
-	if (!viewer->updatePointCloud(pcin, "cloud")) {
-		viewer->addPointCloud(pcin, "cloud");
-	}
-	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer2;
-	// Create PCLVisualizer
-	viewer2 = boost::make_shared<pcl::visualization::PCLVisualizer>("Point Cloud Viewer");
-
-	// Initialize camera position
-	viewer2->setCameraPosition(0.0, 0.0, -100, 0.0, 0.0, 0.0);
-
-	// Add Coordinate System
-	viewer2->addCoordinateSystem(0.1);
-	if (!viewer2->updatePointCloud(pcout, "cloud")) {
-		viewer2->addPointCloud(pcout, "cloud");
-	}
-
-	// Update Viwer
-	while (!viewer2->wasStopped())
-	{
-		viewer2->spinOnce();
-	}
-
-	// Update Viwer
-	while (!viewer->wasStopped())
-	{
-		viewer->spinOnce();
-	}
-	//END VIEW THE SHIT
-
-	/*try {
-	Kinect kinect;
-	kinect.run();
-	}
-	catch (std::exception& ex) {
-	std::cout << ex.what() << std::endl;
-	}*/
 	cin.get();
-	return 0;
+
 }
 
+//int main(int argc, char* argv[])
+//{
+//	ICPCompare icpCompare;
+//	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+//
+//	PCDReader pcdReader;
+//	pcl::PointCloud<pcl::PointXYZ>::Ptr pcin = pcdReader.readPCD("monkey.pcd");
+//	/*pcl::PointCloud<pcl::PointXYZ>::Ptr pcin(new pcl::PointCloud<pcl::PointXYZ>);
+//	//Fill in the CloudIn data
+//	pcin->width = 100;
+//	pcin->height = 50;
+//	pcin->is_dense = false;
+//	pcin->points.resize(pcin->width * pcin->height);
+//	for (size_t i = 0; i < pcin->points.size(); ++i)
+//	{
+//	pcin->points[i].x = 1024 * rand() / (RAND_MAX + 1.0f);
+//	pcin->points[i].y = 1024 * rand() / (RAND_MAX + 1.0f);
+//	pcin->points[i].z = 1024 * rand() / (RAND_MAX + 1.0f);
+//	}*/
+//	//pcl::PointCloud<pcl::PointXYZ>::Ptr pcin = pcdReader.readPCD("snowcat_step_1.pcd");
+//	pcl::PointCloud<pcl::PointXYZ>::Ptr pcout = pcdReader.readPCD("snowcat_step_3.pcd");
+//	//DITO PASUKAN NG PCD NA ICOCOMPARE
+//	icp = icpCompare.comparePCD(pcin, pcout);
+//	int x = icp.hasConverged();
+//	//icp.hasConverged();
+//	//cout << x << icp.getMaximumIterations() << endl;
+//	cout << x << x << endl;
+//	//VIEW THE SHIT
+//	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
+//	// Create PCLVisualizer
+//	viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("Point Cloud Viewer");
+//
+//	// Initialize camera position
+//	viewer->setCameraPosition(0.0, 0.0, -100, 0.0, 0.0, 0.0);
+//
+//	// Add Coordinate System
+//	viewer->addCoordinateSystem(0.1);
+//
+//	if (!viewer->updatePointCloud(pcin, "cloud")) {
+//		viewer->addPointCloud(pcin, "cloud");
+//	}
+//	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer2;
+//	// Create PCLVisualizer
+//	viewer2 = boost::make_shared<pcl::visualization::PCLVisualizer>("Point Cloud Viewer");
+//
+//	// Initialize camera position
+//	viewer2->setCameraPosition(0.0, 0.0, -100, 0.0, 0.0, 0.0);
+//
+//	// Add Coordinate System
+//	viewer2->addCoordinateSystem(0.1);
+//	if (!viewer2->updatePointCloud(pcout, "cloud")) {
+//		viewer2->addPointCloud(pcout, "cloud");
+//	}
+//
+//	// Update Viwer
+//	while (!viewer2->wasStopped())
+//	{
+//		viewer2->spinOnce();
+//	}
+//
+//	// Update Viwer
+//	while (!viewer->wasStopped())
+//	{
+//		viewer->spinOnce();
+//	}
+//	//END VIEW THE SHIT
+//
+//	/*try {
+//	Kinect kinect;
+//	kinect.run();
+//	}
+//	catch (std::exception& ex) {
+//	std::cout << ex.what() << std::endl;
+//	}*/
+//	cin.get();
+//	return 0;
+//}
