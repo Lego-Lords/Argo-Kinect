@@ -5,12 +5,13 @@
 using namespace Microsoft::WRL;
 class Segmenter
 {
+
 public:
 	Segmenter();
 	~Segmenter();
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxelize(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud);
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr removePlane(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud);
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr segment(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud);
+	pcl::PointCloud<pcl::PointXYZRGB> voxelize(pcl::PointCloud<pcl::PointXYZRGB> cloud);
+	pcl::PointCloud<pcl::PointXYZRGB> removePlane(pcl::PointCloud<pcl::PointXYZRGB> cloud);
+	pcl::PointCloud<pcl::PointXYZRGB> segment(pcl::PointCloud<pcl::PointXYZRGB> cloud);
 };
 
 #endif

@@ -18,11 +18,11 @@ Segmenter::~Segmenter()
 }
 
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr Segmenter::voxelize(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
+pcl::PointCloud<pcl::PointXYZRGB> Segmenter::voxelize(pcl::PointCloud<pcl::PointXYZRGB> cloud)
 {
-	pcl::PCLPointCloud2::Ptr cloud_blob, cloud_filtered_blob;
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZRGB>::Ptr);
-	pcl::toPCLPointCloud2(*cloud, *cloud_blob);
+	pcl::PCLPointCloud2::Ptr cloud_blob (new pcl::PCLPointCloud2), cloud_filtered_blob (new pcl::PCLPointCloud2);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	pcl::toPCLPointCloud2(cloud, *cloud_blob);
 	// Create the filtering object
 	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
 	sor.setInputCloud(cloud_blob);
@@ -30,12 +30,11 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr Segmenter::voxelize(pcl::PointCloud<pcl::
 	sor.filter(*cloud_filtered_blob);
 
 	// Convert from blob to legit cloud
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
 	pcl::fromPCLPointCloud2(*cloud_blob, *cloud_filtered);
-	return cloud_filtered;
+	return *cloud_filtered;
 }
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr Segmenter::removePlane(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
+pcl::PointCloud<pcl::PointXYZRGB> Segmenter::removePlane(pcl::PointCloud<pcl::PointXYZRGB> cloud)
 {
 
 	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
@@ -50,8 +49,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr Segmenter::removePlane(pcl::PointCloud<pc
 	seg.setMaxIterations(1000);
 	seg.setDistanceThreshold(0.01);
 
-
-	seg.setInputCloud(cloud);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudPtr(&cloud);
+	seg.setInputCloud(cloudPtr);
 	seg.segment(*inliers, *coefficients);
 
 	if (inliers->indices.size() == 0)
@@ -64,18 +63,18 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr Segmenter::removePlane(pcl::PointCloud<pc
 	pcl::ExtractIndices<pcl::PointXYZRGB> extract;
 
 	// Extract yung mga di kasama sa plane
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_extracted;
-	extract.setInputCloud(cloud);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_extracted = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	extract.setInputCloud(cloudPtr);
 	extract.setIndices(inliers);
 	extract.setNegative(true);
 	extract.filter(*cloud_extracted);
 	//std::cerr << "PointCloud representing the planar component: " << cloud_p->width * cloud_p->height << " data points." << std::endl;
-	return cloud_extracted;
+	return *cloud_extracted;
 }
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr Segmenter::segment(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
+pcl::PointCloud<pcl::PointXYZRGB> Segmenter::segment(pcl::PointCloud<pcl::PointXYZRGB> cloud)
 {
 	
-	return removePlane(voxelize(cloud));
+	return voxelize(cloud);
 
 }

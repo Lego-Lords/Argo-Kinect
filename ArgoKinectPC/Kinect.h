@@ -31,6 +31,14 @@ private:
 	// PCL
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pOutput;
+
+	//for argo
+	int selectedModel;
+	int maxSteps;
+	int currStep;
+	bool updated;
+
 
 public:
 	Kinect();
@@ -50,6 +58,7 @@ public:
 	void drawPointCloud();
 	void show();
 	void showPointCloud();
+	void segment();
 };
 
 #endif

@@ -1,6 +1,14 @@
 #include "stdafx.h"
 #include "Kinect.h"
 #include "Segmenter.h"
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/passthrough.h>
 
 // Error Check
 #define ERROR_CHECK( ret )                                        \
@@ -30,6 +38,9 @@ Kinect::~Kinect()
 			// Update Data
 			update();
 
+			//Segment Data
+			segment();
+
 			// Draw Data
 			draw();
 
@@ -52,6 +63,9 @@ Kinect::~Kinect()
 
 		// Initialize Point Cloud
 		initializePointCloud();
+
+		selectedModel = -1;
+		maxSteps = 0;
 	}
 
 	// Initialize Sensor
@@ -116,6 +130,7 @@ Kinect::~Kinect()
 	{
 		// Create Point Cloud
 		cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+		pOutput = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
 		cloud->width = static_cast<uint32_t>(depthWidth);
 		cloud->height = static_cast<uint32_t>(depthHeight);
 		cloud->points.resize(cloud->height * cloud->width);
@@ -236,10 +251,12 @@ Kinect::~Kinect()
 	// Draw Point Cloud
 	inline void Kinect::drawPointCloud()
 	{
-		Segmenter seg;
+		//Segmenter seg;
+		//pOutput = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>(&seg.segment(*cloud));
+		//pOutput = cloud;
 		// Update Point Cloud
-		if (!viewer->updatePointCloud(seg.segment(cloud), "cloud")) {
-			viewer->addPointCloud(cloud, "cloud");
+		if (!viewer->updatePointCloud(pOutput, "cloud")) {
+			viewer->addPointCloud(pOutput, "cloud");
 		}
 	}
 
@@ -255,5 +272,73 @@ Kinect::~Kinect()
 	{
 		// Update Viwer
 		viewer->spinOnce();
+	}
+
+	void Kinect::segment() 
+	{
+		//Downsample the cloud by voxelizing //////////////////
+
+		pcl::PCLPointCloud2::Ptr cloud_blob(new pcl::PCLPointCloud2), cloud_filtered_blob(new pcl::PCLPointCloud2);
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr  smolCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+		/*pcl::toPCLPointCloud2(*cloud, *cloud_blob);
+		// Create the filtering object
+		pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
+		sor.setInputCloud(cloud_blob);
+		sor.setLeafSize(0.001f, 0.001f, 0.001f);
+		sor.filter(*cloud_filtered_blob);
+		pcl::fromPCLPointCloud2(*cloud_filtered_blob, *cloud_filtered);*/
+
+
+		pcl::PassThrough<pcl::PointXYZRGB> pass;
+		pass.setInputCloud(cloud);
+		pass.setFilterFieldName("z");
+		pass.setFilterLimits(0.3, 1.0);
+		pass.filter(*smolCloud);
+		cloud_filtered.swap(smolCloud);
+
+		//Remove the plane (floor/table) ///////////////////
+		pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+		pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+		// Create the segmentation object
+		pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+		// Optional
+		seg.setOptimizeCoefficients(true);
+		// Mandatory
+		seg.setModelType(pcl::SACMODEL_PLANE);
+		seg.setMethodType(pcl::SAC_RANSAC);
+		seg.setMaxIterations(100);
+		seg.setDistanceThreshold(0.0015);
+
+		pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+		
+		int i = 0, nr_points = (int)cloud_filtered->points.size();
+
+		while (cloud_filtered->points.size() > 0.3 * nr_points && i < 2)
+		{
+			// Segment the largest planar component from the remaining cloud
+			seg.setInputCloud(cloud_filtered);
+			seg.segment(*inliers, *coefficients);
+			if (inliers->indices.size() == 0)
+			{
+				std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
+				break;
+			}
+
+			// Extract yung mga di kasama sa plane
+			//pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_extracted = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+			extract.setInputCloud(cloud_filtered);
+			extract.setIndices(inliers);
+			extract.setNegative(true);
+			extract.filter(*smolCloud);
+			//std::cout << "May natanggal na plane gg\n" << std::endl;
+			cloud_filtered.swap(smolCloud);
+			i++;
+		}
+		pOutput.swap(cloud_filtered);
+		
+		
+		
+
 	}
 
