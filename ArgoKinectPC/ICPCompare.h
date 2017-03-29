@@ -5,7 +5,7 @@
 #include <pcl/point_types.h>
 #include <pcl/registration/icp.h>
 
-extern pcl::PointCloud<pcl::PointXYZ>::Ptr icp;
+//extern pcl::PointCloud<pcl::PointXYZ>::Ptr icp;
 
 class ICPCompare
 {

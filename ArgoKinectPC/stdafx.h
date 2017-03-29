@@ -14,6 +14,7 @@
 
 // TODO: reference additional headers your program requires here
 #define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #undef NOMINMAX
 #include <Kinect.h>

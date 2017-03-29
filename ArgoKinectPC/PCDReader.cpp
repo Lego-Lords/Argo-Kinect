@@ -30,7 +30,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr PCDReader::readPCD(std::string modelStepFile
 		std::cout << "    " << cloud->points[i].x
 		<< " " << cloud->points[i].y
 		<< " " << cloud->points[i].z << std::endl;*/
-
+	/*
 	//VIEW THE SHIT
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 	// Create PCLVisualizer
@@ -49,6 +49,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr PCDReader::readPCD(std::string modelStepFile
 	// Update Viwer
 	viewer->spinOnce();
 	//END VIEW THE SHIT
+	*/
 
 	return cloud;
 }

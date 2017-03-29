@@ -5,6 +5,7 @@
 #include "PCDReader.h"
 #include "ICPCompare.h"
 #include <wrl/client.h>
+#include "SQLConnect.h"
 using namespace Microsoft::WRL;
 
 // Error Check
@@ -295,21 +296,14 @@ private:
 
 int main(int argc, char* argv[])
 {
-	ICPCompare icpCompare;
-	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+	SQLConnect sqlConnect;
+	MYSQL * conn = sqlConnect.setUpConnection("localhost", "root", "", "argo");
+	int x =sqlConnect.getSelectedModel(conn);
+	int y = sqlConnect.getCurrentStep(conn);
+	sqlConnect.updateNextStep(conn, 11);
 
-	//DITO PASUKAN NG PCD NA ICOCOMPARE
-	//icp = icpCompare.comparePCD(); 
-
-	/*try {
-		Kinect kinect;
-		kinect.run();
-	}
-	catch (std::exception& ex) {
-		std::cout << ex.what() << std::endl;
-	}*/
-
-
+	cout << x << endl;
+	cout << y << endl;
 	cin.get();
 
 	return 0;

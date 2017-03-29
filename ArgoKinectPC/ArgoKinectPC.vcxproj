@@ -166,6 +166,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="SQLConnect.h" />
     <ClInclude Include="PCDReader.h" />
     <ClInclude Include="ICPCompare.h" />
     <ClInclude Include="stdafx.h" />
