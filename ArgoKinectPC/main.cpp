@@ -2,11 +2,11 @@
 #include "Kinect.h"
 
 #include <wrl/client.h>
+#include "SQLConnect.h"
 using namespace Microsoft::WRL;
 
 int main(int argc, char* argv[])
 {
-	//icpCompare.comparePCD(); DITO PASUKAN NG PCD NA ICOCOMPARE
 
 	try {
 		Kinect kinect;
@@ -15,7 +15,6 @@ int main(int argc, char* argv[])
 	catch (std::exception& ex) {
 		std::cout << ex.what() << std::endl;
 	}
-
 	cin.get();
 
 	return 0;
