@@ -1,6 +1,10 @@
 #ifndef KINECT_H
 #define KINECT_H
 #include "stdafx.h"
+#include "Segmenter.h"
+#include "Kinect.h"
+#include "SQLConnect.h"
+#include "PCDReader.h"
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
 class Kinect
@@ -30,15 +34,23 @@ private:
 
 	// PCL
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pOutput;
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud;
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pOutput;
 
 	//for argo
+	int filesSaved;
 	int selectedModel;
 	int maxSteps;
 	int currStep;
-	bool updated;
-
+	bool updated, noSelect, saveCloud;
+	std::string stepfile;
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudAgainst;
+	SQLConnect con;
+	PCDReader pread;
+	MYSQL * connection;
+	bool datagathering;
+	bool matching;
+	int sceneFound;
 
 public:
 	Kinect();
@@ -49,6 +61,7 @@ public:
 	void initializeColor();
 	void initializeDepth();
 	void initializePointCloud();
+	void initializeArgo();
 	void finalize();
 	void update();
 	void updateColor();
@@ -58,7 +71,10 @@ public:
 	void drawPointCloud();
 	void show();
 	void showPointCloud();
+	void Kinect::keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void * viewer_void);
 	void segment();
+	void match();
+	void checkSave();
 };
 
 #endif

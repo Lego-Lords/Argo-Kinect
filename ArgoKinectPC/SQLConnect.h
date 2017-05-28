@@ -14,6 +14,7 @@ private:
 	int currentStep;
 	int maxStep;
 	//add method skeleton
+
 public:
 	SQLConnect();
 	MYSQL * setUpConnection(char* server, char* username, char* password, char* db);

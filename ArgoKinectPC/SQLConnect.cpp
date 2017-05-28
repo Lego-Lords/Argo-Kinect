@@ -66,14 +66,14 @@ int SQLConnect::getMaxStep(MYSQL * connection)
 	MYSQL_ROW row;	// the results row (line by line)
 
 	std::ostringstream buf;
-	buf << "SELECT maxStep FROM argo_app_steps WHERE id = '" << modelSelected << "' ";
+	buf << "SELECT maxSteps FROM argo_app_steps WHERE id = '" << modelSelected << "' ";
 	string str = buf.str();
 
 	char* s2 = (char *)alloca(str.size() + 1);
 	memcpy(s2, str.c_str(), str.size() + 1);
 	res = mysql_perform_query(connection, s2);
 	while ((row = mysql_fetch_row(res)) != NULL)
-		currentStep += atoi(row[0]);
+		maxStep += atoi(row[0]);
 
 	return maxStep;
 }
