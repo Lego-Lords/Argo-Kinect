@@ -24,14 +24,17 @@ pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> ICPCompare::comparePCD(
 	icp.setInputSource(cloud_in); // originally setInputCloud
 	icp.setInputTarget(cloud_out);
 
+	/*
 	icp.setMaximumIterations(500);
 	icp.setTransformationEpsilon(1e-9);
 	icp.setMaxCorrespondenceDistance(0.05);
 	icp.setEuclideanFitnessEpsilon(1);
 	icp.setRANSACOutlierRejectionThreshold(500);
+	*/
 
 	pcl::PointCloud<pcl::PointXYZ> Final;
 	//icp.setMaximumIterations(1);
+	icp.setTransformationEpsilon(1e-20000);
 	icp.align(Final);
 	std::cout << "has converged:" << icp.hasConverged() << " score: " <<
 		icp.getFitnessScore() << std::endl;
