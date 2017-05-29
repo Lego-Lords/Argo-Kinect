@@ -106,7 +106,7 @@ void Kinect::run() {
 		update();
 
 		//Segment Data
-		segment();
+		segmenter.segmentCloud(cloud, pOutput);
 
 		//checkSave();
 		if (matching) {
@@ -366,7 +366,9 @@ void Kinect::initializeArgo() {
 	sceneFound = 0;
 }
 
-void Kinect::segment() {
+void Kinect::segmentUpdate() {
+
+
 	pcl::PCLPointCloud2::Ptr cloud_blob(new pcl::PCLPointCloud2), cloud_filtered_blob(new pcl::PCLPointCloud2);
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  smolCloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -409,13 +411,13 @@ void Kinect::segment() {
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 	int i = 0, nr_points = (int)cloud_filtered->points.size();
 
-	while (cloud_filtered->points.size() > 0.3 * nr_points) {
+	//while (cloud_filtered->points.size() > 0.3 * nr_points) {
 		// Segment the largest planar component from the remaining cloud
 		seg.setInputCloud(cloud_filtered);
 		seg.segment(*inliers, *coefficients);
 		if (inliers->indices.size() == 0) {
 			std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
-			break;
+			//break;
 		}
 
 		// Extract yung mga di kasama sa plane
@@ -427,7 +429,7 @@ void Kinect::segment() {
 		//std::cout << "May natanggal na plane gg\n" << std::endl;
 		cloud_filtered.swap(smolCloud);
 		i++;
-	}
+	//}
 	//std::cout << i << std::endl;
 
 	//checkSave();

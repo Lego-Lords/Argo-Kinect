@@ -168,6 +168,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Kinect.h" />
+    <ClInclude Include="Recognizer.h" />
     <ClInclude Include="Segmenter.h" />
     <ClInclude Include="SQLConnect.h" />
     <ClInclude Include="PCDReader.h" />
@@ -180,6 +181,7 @@
     <ClCompile Include="Kinect.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OpenNISimple.cpp" />
+    <ClCompile Include="Recognizer.cpp" />
     <ClCompile Include="Segmenter.cpp" />
     <ClCompile Include="PCDReader.cpp" />
     <ClCompile Include="source.cpp" />

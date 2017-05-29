@@ -38,6 +38,8 @@ private:
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pOutput;
 
 	//for argo
+	Segmenter segmenter;
+
 	int filesSaved;
 	int selectedModel;
 	int maxSteps;
@@ -72,7 +74,7 @@ public:
 	void show();
 	void showPointCloud();
 	void Kinect::keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void * viewer_void);
-	void segment();
+	void segmentUpdate();
 	void match();
 	void checkSave();
 };

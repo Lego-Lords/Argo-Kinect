@@ -4,20 +4,17 @@
 #include <stdlib.h>
 #include "SQLConnect.h"
 
-struct connection_details
-{
+struct connection_details {
 	char *server;
 	char *user;
 	char *password;
 	char *database;
 };
 
-SQLConnect::SQLConnect()
-{
+SQLConnect::SQLConnect() {
 }
 
-MYSQL *SQLConnect::setUpConnection(char* server, char* username, char* password, char* db)
-{
+MYSQL *SQLConnect::setUpConnection(char* server, char* username, char* password, char* db) {
 	MYSQL *conn;		// the connection
 	struct connection_details mysqlD;
 	mysqlD.server = server;  // where the mysql database is
@@ -29,8 +26,7 @@ MYSQL *SQLConnect::setUpConnection(char* server, char* username, char* password,
 	return conn = mysql_connection_setup(mysqlD);
 }
 
-int SQLConnect::getSelectedModel(MYSQL * connection)
-{
+int SQLConnect::getSelectedModel(MYSQL * connection) {
 	modelSelected = 0;
 	MYSQL_RES *res;	// the results
 	MYSQL_ROW row;	// the results row (line by line)
@@ -42,8 +38,7 @@ int SQLConnect::getSelectedModel(MYSQL * connection)
 	return modelSelected;
 }
 
-int SQLConnect::getCurrentStep(MYSQL * connection)
-{
+int SQLConnect::getCurrentStep(MYSQL * connection) {
 	MYSQL_RES *res;	// the results
 	MYSQL_ROW row;	// the results row (line by line)
 
@@ -60,8 +55,7 @@ int SQLConnect::getCurrentStep(MYSQL * connection)
 	return currentStep;
 }
 
-int SQLConnect::getMaxStep(MYSQL * connection)
-{
+int SQLConnect::getMaxStep(MYSQL * connection) {
 	MYSQL_RES *res;	// the results
 	MYSQL_ROW row;	// the results row (line by line)
 
@@ -78,15 +72,14 @@ int SQLConnect::getMaxStep(MYSQL * connection)
 	return maxStep;
 }
 
-void SQLConnect::updateNextStep(MYSQL * connection, int nextStep)
-{
+void SQLConnect::updateNextStep(MYSQL * connection, int nextStep) {
 	//UPDATE `argo`.`argo_app_steps` SET `currentStep`='5' WHERE `id`='1';
 	MYSQL_RES *res;	// the results
 	MYSQL_ROW row;	// the results row (line by line)
 
 	std::ostringstream buf;
-	buf << "UPDATE `argo`.`argo_app_steps` SET `currentStep`= '" << nextStep << "'" << " WHERE id = '"<< modelSelected << "'" ;
-	
+	buf << "UPDATE `argo`.`argo_app_steps` SET `currentStep`= '" << nextStep << "'" << " WHERE id = '" << modelSelected << "'";
+
 	string str = buf.str();
 
 	char* s2 = (char *)alloca(str.size() + 1);
@@ -99,8 +92,7 @@ void SQLConnect::updateNextStep(MYSQL * connection, int nextStep)
 // just going to input the general details and not the port numbers
 
 
-MYSQL* SQLConnect::mysql_connection_setup(struct connection_details mysql_details)
-{
+MYSQL* SQLConnect::mysql_connection_setup(struct connection_details mysql_details) {
 	// first of all create a mysql instance and initialize the variables within
 	MYSQL *connection = mysql_init(NULL);
 
@@ -112,11 +104,9 @@ MYSQL* SQLConnect::mysql_connection_setup(struct connection_details mysql_detail
 	return connection;
 }
 
-MYSQL_RES* SQLConnect::mysql_perform_query(MYSQL *connection, char *sql_query)
-{
+MYSQL_RES* SQLConnect::mysql_perform_query(MYSQL *connection, char *sql_query) {
 	// send the query to the database
-	if (mysql_query(connection, sql_query))
-	{
+	if (mysql_query(connection, sql_query)) {
 		printf("MySQL query error : %s\n", mysql_error(connection));
 		exit(1);
 	}
