@@ -105,7 +105,7 @@ void Kinect::run() {
 		// Update Data
 		update();
 
-		//Segment Data
+		//Segment Data oh yeah wubalubadubdub
 		segmenter.segmentCloud(cloud, pOutput);
 
 		//checkSave();
