@@ -34,8 +34,8 @@ private:
 
 	// PCL
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud;
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pOutput;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pOutput;
 
 	//for argo
 	Segmenter segmenter;
@@ -46,7 +46,7 @@ private:
 	int currStep;
 	bool updated, noSelect, saveCloud;
 	std::string stepfile;
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudAgainst;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudAgainst;
 	SQLConnect con;
 	PCDReader pread;
 	MYSQL * connection;

@@ -49,7 +49,7 @@
 #include <pcl/console/parse.h>
 
 
-typedef pcl::PointXYZRGBA PointType;
+typedef pcl::PointXYZRGB PointType;
 typedef pcl::Normal NormalType;
 typedef pcl::ReferenceFrame RFType;
 typedef pcl::SHOT352 DescriptorType;
@@ -217,8 +217,8 @@ inline void Kinect::initializeDepth() {
 // Initialize Point Cloud
 inline void Kinect::initializePointCloud() {
 	// Create Point Cloud
-	cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
-	pOutput = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+	cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	pOutput = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
 	cloud->width = static_cast<uint32_t>(depthWidth);
 	cloud->height = static_cast<uint32_t>(depthHeight);
 	cloud->points.resize(cloud->height * cloud->width);
@@ -290,7 +290,7 @@ inline void Kinect::updatePointCloud() {
 	// Convert to Point Cloud
 	for (int depthY = 0; depthY < depthHeight; depthY++) {
 		for (int depthX = 0; depthX < depthWidth; depthX++) {
-			pcl::PointXYZRGBA point;
+			pcl::PointXYZRGB point;
 
 			// Retrieve Mapped Coordinates
 			DepthSpacePoint depthSpacePoint = { static_cast<float>(depthX), static_cast<float>(depthY) };
@@ -306,7 +306,7 @@ inline void Kinect::updatePointCloud() {
 				point.b = colorBuffer[colorIndex + 0];
 				point.g = colorBuffer[colorIndex + 1];
 				point.r = colorBuffer[colorIndex + 2];
-				point.a = colorBuffer[colorIndex + 3];
+				//point.a = colorBuffer[colorIndex + 3];
 			}
 
 			// Retrieve Mapped Coordinates
@@ -370,9 +370,9 @@ void Kinect::segmentUpdate() {
 
 
 	pcl::PCLPointCloud2::Ptr cloud_blob(new pcl::PCLPointCloud2), cloud_filtered_blob(new pcl::PCLPointCloud2);
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  smolCloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  convexHull(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr  smolCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr  convexHull(new pcl::PointCloud<pcl::PointXYZRGB>);
 	/*pcl::toPCLPointCloud2(*cloud, *cloud_blob);
 	// Create the filtering object
 	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
@@ -382,7 +382,7 @@ void Kinect::segmentUpdate() {
 	pcl::fromPCLPointCloud2(*cloud_filtered_blob, *cloud_filtered);*/
 
 
-	pcl::PassThrough<pcl::PointXYZRGBA> pass;
+	pcl::PassThrough<pcl::PointXYZRGB> pass;
 	pass.setInputCloud(cloud);
 	pass.setFilterFieldName("z");
 	pass.setFilterLimits(0.3, 0.9);
@@ -399,7 +399,7 @@ void Kinect::segmentUpdate() {
 	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 	// Create the segmentation object
-	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
+	pcl::SACSegmentation<pcl::PointXYZRGB> seg;
 	// Optional
 	seg.setOptimizeCoefficients(true);
 	// Mandatory
@@ -408,7 +408,7 @@ void Kinect::segmentUpdate() {
 	seg.setMaxIterations(100);
 	seg.setDistanceThreshold(0.005);
 
-	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
+	pcl::ExtractIndices<pcl::PointXYZRGB> extract;
 	int i = 0, nr_points = (int)cloud_filtered->points.size();
 
 	//while (cloud_filtered->points.size() > 0.3 * nr_points) {
@@ -496,11 +496,11 @@ void Kinect::segmentUpdate() {
 	pOutput.swap(colorClouds);*/
 	// Creating the KdTree object for the search method of the extraction
 	if (datagathering) {
-		pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>);
+		pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
 		tree->setInputCloud(cloud_filtered);
 
 		std::vector<pcl::PointIndices> cluster_indices;
-		pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
+		pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
 		ec.setClusterTolerance(0.02); // 2cm
 		ec.setMinClusterSize(100);
 		ec.setMaxClusterSize(25000);
@@ -510,7 +510,7 @@ void Kinect::segmentUpdate() {
 
 		int j = 0;
 		for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin(); it != cluster_indices.end(); ++it) {
-			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZRGBA>);
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
 			for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
 				cloud_cluster->points.push_back(cloud_filtered->points[*pit]); //*
 			cloud_cluster->width = cloud_cluster->points.size();
@@ -520,7 +520,7 @@ void Kinect::segmentUpdate() {
 			std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size() << " data points." << std::endl;
 			std::stringstream ss;
 			ss << "cloud_cluster_" << j << ".pcd";
-			writer.write<pcl::PointXYZRGBA>(ss.str(), *cloud_cluster, false);
+			writer.write<pcl::PointXYZRGB>(ss.str(), *cloud_cluster, false);
 			j++;
 		}
 	}
@@ -557,7 +557,7 @@ void Kinect::match() {
 	else {
 		if (updated) {
 			//currStep++;
-			cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+			cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
 			pread.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", cloudAgainst);
 			//pread.readPCD("cloud_cluster_1.pcd", cloudAgainst);
 			updated = false;
