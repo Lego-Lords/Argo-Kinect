@@ -87,6 +87,7 @@
     <Import Project="config\PCL.props" />
     <Import Project="config\KinectSDK.props" />
     <Import Project="config\MySQL.props" />
+    <Import Project="OpenCV.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

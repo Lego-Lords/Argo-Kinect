@@ -6,13 +6,13 @@ using namespace Microsoft::WRL;
 
 class Segmenter {
 	private:
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr input;
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr output;
+		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input;
+		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output;
 
 	public:
 		Segmenter();
 		~Segmenter();
-		void segmentCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr input, pcl::PointCloud<pcl::PointXYZRGB>::Ptr output);
+		void segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output);
 		void lowerVisibleArea();
 		void downsampleCloud();
 		void segmentPlane();
