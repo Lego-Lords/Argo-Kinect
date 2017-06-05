@@ -61,7 +61,7 @@ void Segmenter::segmentPlane() {
 	seg.setModelType(pcl::SACMODEL_PLANE);
 	seg.setMethodType(pcl::SAC_RANSAC);
 	seg.setMaxIterations(100);
-	seg.setDistanceThreshold(0.02);
+	seg.setDistanceThreshold(0.008);
 
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 	int i = 0, nr_points = (int)input->points.size();
