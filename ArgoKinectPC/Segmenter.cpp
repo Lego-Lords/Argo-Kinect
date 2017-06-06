@@ -8,6 +8,9 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/conditional_removal.h>
+#include <pcl/kdtree/kdtree_flann.h>
+
 
 
 Segmenter::Segmenter() {
@@ -35,6 +38,9 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	//remove largest plane
 	segmentPlane();
 
+	//remove skin
+	removeSkinPixels();
+
 }
 
 void Segmenter::lowerVisibleArea() {
@@ -61,7 +67,7 @@ void Segmenter::segmentPlane() {
 	seg.setModelType(pcl::SACMODEL_PLANE);
 	seg.setMethodType(pcl::SAC_RANSAC);
 	seg.setMaxIterations(100);
-	seg.setDistanceThreshold(0.008);
+	seg.setDistanceThreshold(0.0085);
 
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 	int i = 0, nr_points = (int)input->points.size();
@@ -82,7 +88,37 @@ void Segmenter::segmentPlane() {
 }
 
 void Segmenter::removeSkinPixels() {
-	
+	dummyNoA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	dummyNoAFiltered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	pcl::copyPointCloud(*input, *dummyNoA);
+	// build the condition 
+	int rMax = 255;
+	int rMin = 165;
+	int gMax = 223;
+	int gMin = 108;
+	int bMax = 196;
+	int bMin = 87;
+	pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond(new pcl::ConditionAnd<pcl::PointXYZRGB>());
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::LT, rMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::GT, rMin)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("g", pcl::ComparisonOps::LT, gMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("g", pcl::ComparisonOps::GT, gMin)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("b", pcl::ComparisonOps::LT, bMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("b", pcl::ComparisonOps::GT, bMin)));
+
+	// build the filter 
+	pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem(color_cond);
+	condrem.setInputCloud(dummyNoA);
+	condrem.setKeepOrganized(true);
+
+	// apply filter 
+	condrem.filter(*dummyNoAFiltered); 
+	std::cout << "filtered found: " << dummyNoAFiltered->size() << std::endl;
+	//output = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+
+	pcl::copyPointCloud(*dummyNoAFiltered, *output);
+	*input = *output;
 	
 }
+
 

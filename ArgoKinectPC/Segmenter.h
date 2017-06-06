@@ -8,6 +8,10 @@ class Segmenter {
 	private:
 		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input;
 		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output;
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr dummyNoA;
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr dummyNoAFiltered;
+		const int DEPTH_WIDTH = 512;
+		const int DEPTH_HEIGHT = 424;
 
 	public:
 		Segmenter();
@@ -17,6 +21,8 @@ class Segmenter {
 		void downsampleCloud();
 		void segmentPlane();
 		void removeSkinPixels();
+		void copyRGBAtoRGB();
+		void copyRGBtoRGBA();
 };
 
 #endif
