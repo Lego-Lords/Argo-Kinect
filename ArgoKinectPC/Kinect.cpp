@@ -104,6 +104,8 @@ void Kinect::run() {
 	while (!viewer->wasStopped()) {
 		// Update Data
 		update();
+		//int age;
+		//cin >> age;
 
 		//Segment Data oh yeah wubalubadubdub
 		segmenter.segmentCloud(cloud, pOutput);

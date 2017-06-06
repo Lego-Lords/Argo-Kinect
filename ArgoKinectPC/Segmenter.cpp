@@ -36,7 +36,7 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	downsampleCloud();
 
 	//remove largest plane
-	segmentPlane();
+	//segmentPlane();
 
 	//remove skin
 	removeSkinPixels();
@@ -93,11 +93,11 @@ void Segmenter::removeSkinPixels() {
 	pcl::copyPointCloud(*input, *dummyNoA);
 	// build the condition 
 	int rMax = 255;
-	int rMin = 165;
-	int gMax = 223;
-	int gMin = 108;
-	int bMax = 196;
-	int bMin = 87;
+	int rMin = 230;
+	int gMax = 100;
+	int gMin = 0;
+	int bMax = 100;
+	int bMin = 0;
 	pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond(new pcl::ConditionAnd<pcl::PointXYZRGB>());
 	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::LT, rMax)));
 	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::GT, rMin)));
@@ -113,10 +113,10 @@ void Segmenter::removeSkinPixels() {
 
 	// apply filter 
 	condrem.filter(*dummyNoAFiltered); 
-	std::cout << "filtered found: " << dummyNoAFiltered->size() << std::endl;
 	//output = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 
 	pcl::copyPointCloud(*dummyNoAFiltered, *output);
+	std::cout << "cloud size: " << output->size() << std::endl;
 	*input = *output;
 	
 }
