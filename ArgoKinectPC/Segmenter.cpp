@@ -36,10 +36,10 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	downsampleCloud();
 
 	//remove largest plane
-	//segmentPlane();
+	segmentPlane();
 
-	//remove skin
-	removeSkinPixels();
+	//remove skin/iwan lang bricks
+	isolateBricks();
 
 }
 
@@ -87,17 +87,30 @@ void Segmenter::segmentPlane() {
 	*input = *output;
 }
 
-void Segmenter::removeSkinPixels() {
-	dummyNoA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
-	dummyNoAFiltered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
-	pcl::copyPointCloud(*input, *dummyNoA);
-	// build the condition 
-	int rMax = 255;
-	int rMin = 230;
-	int gMax = 100;
-	int gMin = 0;
-	int bMax = 100;
-	int bMin = 0;
+void Segmenter::isolateBricks() {
+	//init
+	input_noA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	pcl::copyPointCloud(*input, *input_noA);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  redBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  greenBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  blueBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  yellowBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+	//filter per color
+	//TODO: filter for other colors
+	filterColorBricks(redBricks, 255, 150, 100, 0, 100, 0);
+
+	
+	output->clear();
+	*output += *redBricks;
+	std::cout << "cloud size: " << output->size() << std::endl;
+	*input = *output;
+	
+}
+
+void Segmenter::filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin) {
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr dummyNoAFiltered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	
 	pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond(new pcl::ConditionAnd<pcl::PointXYZRGB>());
 	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::LT, rMax)));
 	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::GT, rMin)));
@@ -108,17 +121,12 @@ void Segmenter::removeSkinPixels() {
 
 	// build the filter 
 	pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem(color_cond);
-	condrem.setInputCloud(dummyNoA);
-	condrem.setKeepOrganized(true);
+	condrem.setInputCloud(input_noA);
 
 	// apply filter 
-	condrem.filter(*dummyNoAFiltered); 
-	//output = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+	condrem.filter(*dummyNoAFiltered);
 
-	pcl::copyPointCloud(*dummyNoAFiltered, *output);
-	std::cout << "cloud size: " << output->size() << std::endl;
-	*input = *output;
-	
+	pcl::copyPointCloud(*dummyNoAFiltered, *filtered);
 }
 
 
