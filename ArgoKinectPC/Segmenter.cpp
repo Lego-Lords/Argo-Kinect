@@ -32,8 +32,8 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	//crop the area that the kinect can see
 	lowerVisibleArea();
 
-	//downsample point cloud
-	downsampleCloud();
+	//downsample point cloud, lower amount of points
+	//downsampleCloud();
 
 	//remove largest plane
 	segmentPlane();
@@ -54,7 +54,14 @@ void Segmenter::lowerVisibleArea() {
 }
 
 void Segmenter::downsampleCloud() {
-	
+	pcl::PCLPointCloud2::Ptr cloud_blob(new pcl::PCLPointCloud2), cloud_filtered_blob(new pcl::PCLPointCloud2);
+	pcl::toPCLPointCloud2(*input, *cloud_blob);
+	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
+	sor.setInputCloud(cloud_blob);
+	sor.setLeafSize(0.01f, 0.01f, 0.01f);
+	sor.filter(*cloud_filtered_blob);
+	pcl::fromPCLPointCloud2(*cloud_filtered_blob, *output);
+	*input = *output;
 }
 
 void Segmenter::segmentPlane() {
@@ -97,12 +104,16 @@ void Segmenter::isolateBricks() {
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  yellowBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
 
 	//filter per color
-	//TODO: filter for other colors
 	filterColorBricks(redBricks, 255, 150, 100, 0, 100, 0);
+	filterColorBricks(greenBricks, 100, 0, 255, 150, 100, 0);
+	filterColorBricks(blueBricks, 100, 0, 100, 0, 255, 150);
+	filterColorBricks(yellowBricks, 255, 150, 255, 150, 100, 0);
 
-	
 	output->clear();
 	*output += *redBricks;
+	*output += *greenBricks;
+	*output += *blueBricks;
+	*output += *yellowBricks;
 	std::cout << "cloud size: " << output->size() << std::endl;
 	*input = *output;
 	
