@@ -28,19 +28,16 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 
 	/*************** Segmentation Pipeline ***************/
 	//downsample, lower the resolution of the kinect so it would be faster to process
+	//downsampleCloud();
 
 	//crop the area that the kinect can see
 	lowerVisibleArea();
-
-	//downsample point cloud, lower amount of points
-	//downsampleCloud();
 
 	//remove largest plane
 	segmentPlane();
 
 	//remove skin/iwan lang bricks
 	isolateBricks();
-
 }
 
 void Segmenter::lowerVisibleArea() {
@@ -94,6 +91,8 @@ void Segmenter::segmentPlane() {
 	*input = *output;
 }
 
+
+
 void Segmenter::isolateBricks() {
 	//init
 	input_noA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
@@ -116,7 +115,6 @@ void Segmenter::isolateBricks() {
 	*output += *yellowBricks;
 	std::cout << "cloud size: " << output->size() << std::endl;
 	*input = *output;
-	
 }
 
 void Segmenter::filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin) {

@@ -7,5 +7,6 @@ private:
 public:
 	Recognizer();
 	~Recognizer();
+	void recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output);
 };
 
