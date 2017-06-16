@@ -1,12 +1,47 @@
 #pragma once
+#include "PCDReader.h"
+#include "SQLConnect.h"
+
 class Recognizer {
 private:
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output;
+	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
+
+	pcl::PointCloud<pcl::Normal>::Ptr model_normals;
+	pcl::PointCloud<pcl::Normal>::Ptr scene_normals;
+
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr model_keypoints;
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene_keypoints;
+
+	pcl::PointCloud<pcl::SHOT352>::Ptr model_descriptors;
+	pcl::PointCloud<pcl::SHOT352>::Ptr scene_descriptors;
+
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudAgainst;
+
+	PCDReader pread;
+	SQLConnect sqlCon;
+	MYSQL* connection;
+
+	int filesSaved;
+	int selectedModel;
+	int maxSteps;
+	int currStep;
+	int sceneFound;
+
+	bool hasUpdate;
+
+	const std::string snowcat = "steps/nowcat_step_";
+	const std::string pyramid = "steps/pyramid_step_";
 
 public:
 	Recognizer();
 	~Recognizer();
-	void recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output);
+	void recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer);
+	void getCloudToCompare();
+	void computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, int numNeighbors);
+	void obtainKeypoints(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, float radius);
+	void computeDescriptor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::SHOT352>::Ptr descriptors, float radius);
+	void findCorrespondences();
 };
 

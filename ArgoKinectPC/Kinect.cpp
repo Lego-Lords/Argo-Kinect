@@ -108,7 +108,7 @@ void Kinect::run() {
 		//cin >> age;
 
 		//Segment Data oh yeah wubalubadubdub
-		segmenter.segmentCloud(cloud, pOutput);
+		segmenter.segmentCloud(cloud, pOutput, viewer);
 
 		//checkSave();
 		if (matching) {
@@ -230,12 +230,13 @@ inline void Kinect::initializePointCloud() {
 	viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("Point Cloud Viewer");
 
 	// Initialize camera position
-	viewer->setCameraPosition(0.0, 0.0, -2.5, 0.0, 0.0, 0.0);
+	viewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
 
 	//viewer->registerKeyboardCallback(keyboardEventOccurred);
 	// Add Coordinate System
 	viewer->addCoordinateSystem(0.1);
 	//viewer->registerKeyboardCallback(keyboardEventOccurred, (void*)viewer.get());
+	viewer->addPointCloud(cloud, "cloud");
 }
 
 // Finalize

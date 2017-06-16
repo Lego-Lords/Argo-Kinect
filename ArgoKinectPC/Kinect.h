@@ -2,6 +2,7 @@
 #define KINECT_H
 #include "stdafx.h"
 #include "Segmenter.h"
+#include "Recognizer.h"
 #include "Kinect.h"
 #include "SQLConnect.h"
 #include "PCDReader.h"
@@ -39,6 +40,7 @@ private:
 
 	//for argo
 	Segmenter segmenter;
+	Recognizer recognizer;
 
 	int filesSaved;
 	int selectedModel;
