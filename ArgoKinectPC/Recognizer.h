@@ -17,7 +17,16 @@ private:
 	pcl::PointCloud<pcl::SHOT352>::Ptr model_descriptors;
 	pcl::PointCloud<pcl::SHOT352>::Ptr scene_descriptors;
 
+	pcl::PointCloud<pcl::ReferenceFrame>::Ptr model_rf;
+	pcl::PointCloud<pcl::ReferenceFrame>::Ptr scene_rf;
+
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudAgainst;
+
+	pcl::CorrespondencesPtr corrs;
+
+	std::vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Matrix4f> > rototranslations;
+	std::vector<pcl::Correspondences> clustCorrs;
+
 
 	PCDReader pread;
 	SQLConnect sqlCon;
@@ -31,7 +40,7 @@ private:
 
 	bool hasUpdate;
 
-	const std::string snowcat = "steps/nowcat_step_";
+	const std::string snowcat = "steps/snowcat_step_";
 	const std::string pyramid = "steps/pyramid_step_";
 
 public:
@@ -43,5 +52,7 @@ public:
 	void obtainKeypoints(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, float radius);
 	void computeDescriptor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::SHOT352>::Ptr descriptors, float radius);
 	void findCorrespondences();
+	void computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::ReferenceFrame>::Ptr rf, float radius);
+	void clusterCorrespondences(float binSize, float thresh);
 };
 

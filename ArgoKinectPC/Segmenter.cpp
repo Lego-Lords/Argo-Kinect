@@ -9,7 +9,6 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/conditional_removal.h>
-#include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 
 
@@ -27,7 +26,11 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	this->input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();; 
 	*(this->input) = *input;//input is what functions use
 	this->output = output; //output is result of the function
+
+
 	this->viewer = viewer; //for visualization
+
+	*output = *input;
 
 	/*************** Segmentation Pipeline ***************/
 	//downsample, lower the resolution of the kinect so it would be faster to process
@@ -64,7 +67,7 @@ void Segmenter::downsampleCloud() {
 	pcl::toPCLPointCloud2(*input, *cloud_blob);
 	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
 	sor.setInputCloud(cloud_blob);
-	sor.setLeafSize(0.001f, 0.001f, 0.001f); //0.01 = 1 cm, 0.001 = 1 mm
+	sor.setLeafSize(0.01f, 0.01f, 0.01f); //0.01 = 1 cm, 0.001 = 1 mm
 	sor.filter(*cloud_filtered_blob);
 	pcl::fromPCLPointCloud2(*cloud_filtered_blob, *output);
 	*input = *output;
@@ -113,8 +116,8 @@ void Segmenter::isolateBricks() {
 
 	//filter per color
 	filterColorBricks(redBricks, 255, 70, 69, 0, 69, 0);
-	filterColorBricks(greenBricks, 100, 0, 255, 150, 100, 0);
-	filterColorBricks(blueBricks, 100, 0, 100, 0, 255, 150);
+	filterColorBricks(greenBricks, 150, 0, 255, 150, 100, 0);
+	filterColorBricks(blueBricks, 69, 0, 69, 0, 255, 70);
 	filterColorBricks(yellowBricks, 255, 150, 255, 150, 100, 0);
 
 	output->clear();
@@ -122,11 +125,11 @@ void Segmenter::isolateBricks() {
 	*output += *greenBricks;
 	*output += *blueBricks;
 	*output += *yellowBricks;
-	//pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> segmented_cloud_color_handler(output, 255, 255, 165);
+	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> segmented_cloud_color_handler(output, 255, 255, 165);
 	//if (!viewer->updatePointCloud(output, segmented_cloud_color_handler, "segmented_cloud")) {
 		//viewer->addPointCloud(output, segmented_cloud_color_handler, "segmented_cloud");
 	//}
-	std::cout << "cloud size: " << output->size() << std::endl;
+	//std::cout << "cloud size: " << output->size() << std::endl;
 	*input = *output;
 }
 
@@ -165,7 +168,7 @@ void Segmenter::removeOutliers() {
 	pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor;
 	sor.setInputCloud(input);
 	sor.setMeanK(50);
-	sor.setStddevMulThresh(1.0);
+	sor.setStddevMulThresh(0.5);
 	sor.filter(*output);
 	*input = *output;
 }

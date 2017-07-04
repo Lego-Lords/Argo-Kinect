@@ -108,12 +108,17 @@ void Kinect::run() {
 		//cin >> age;
 
 		//Segment Data oh yeah wubalubadubdub
-		segmenter.segmentCloud(cloud, pOutput, viewer);
+		if (cloud->size() > 0)
+		{
+			segmenter.segmentCloud(cloud, pOutput, viewer);
 
-		//checkSave();
-		if (matching) {
-			match();
+			//recognizer.recognizeState(pOutput, viewer);
 		}
+			
+		//checkSave();
+		//if (matching) {
+			//match();
+		//}
 		//Matchy Matchy
 
 
@@ -667,7 +672,7 @@ void Kinect::match() {
 }
 
 void Kinect::checkSave() {
-	if (saveCloud) {
+	if (saveCloud && pOutput->size() > 0) {
 		saveCloud = false;
 		stringstream stream;
 		stream << "snowcat_step_" << filesSaved << ".pcd";
