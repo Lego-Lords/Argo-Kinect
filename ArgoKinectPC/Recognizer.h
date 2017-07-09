@@ -6,6 +6,7 @@ class Recognizer {
 private:
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output;
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_icp;
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 
 	pcl::PointCloud<pcl::Normal>::Ptr model_normals;
@@ -42,6 +43,7 @@ private:
 
 	const std::string snowcat = "steps/snowcat_step_";
 	const std::string pyramid = "steps/pyramid_step_";
+	const std::string quacktro = "steps/duck_step_";
 
 public:
 	Recognizer();
@@ -54,5 +56,7 @@ public:
 	void findCorrespondences();
 	void computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::ReferenceFrame>::Ptr rf, float radius);
 	void clusterCorrespondences(float binSize, float thresh);
+	void print4x4Matrix(const Eigen::Matrix4d & matrix);
+	void estimatePose();
+	void performICP();
 };
-

@@ -42,7 +42,7 @@
 #include <pcl/recognition/cg/geometric_consistency.h>
 #include <pcl/recognition/hv/hv_go.h>
 #include <pcl/registration/icp.h>
-#include <pcl/visualization/pcl_visualizer.h>
+
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/common/transforms.h> 
@@ -112,10 +112,10 @@ void Kinect::run() {
 		{
 			segmenter.segmentCloud(cloud, pOutput, viewer);
 
-			//recognizer.recognizeState(pOutput, viewer);
+			recognizer.recognizeState(pOutput, viewer);
 		}
 			
-		//checkSave();
+		checkSave();
 		//if (matching) {
 			//match();
 		//}
@@ -157,7 +157,7 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent &event, void*
 		std::cout << "'h' was pressed" << std::endl;
 }
 
-/*
+
 void Kinect::keyboardEventOccurred(const pcl::visualization::KeyboardEvent &event, void* viewer_void)
 {
 	if (event.getKeySym() == "space" && event.keyDown())
@@ -165,7 +165,7 @@ void Kinect::keyboardEventOccurred(const pcl::visualization::KeyboardEvent &even
 		std::cout << "Space is pressed" << std::endl;
 		saveCloud = true;
 	}
-}*/
+}
 
 // Initialize Sensor
 inline void Kinect::initializeSensor() {
@@ -240,7 +240,7 @@ inline void Kinect::initializePointCloud() {
 	//viewer->registerKeyboardCallback(keyboardEventOccurred);
 	// Add Coordinate System
 	viewer->addCoordinateSystem(0.1);
-	//viewer->registerKeyboardCallback(keyboardEventOccurred, (void*)viewer.get());
+	//viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*)NULL);
 	viewer->addPointCloud(cloud, "cloud");
 }
 
@@ -675,7 +675,7 @@ void Kinect::checkSave() {
 	if (saveCloud && pOutput->size() > 0) {
 		saveCloud = false;
 		stringstream stream;
-		stream << "snowcat_step_" << filesSaved << ".pcd";
+		stream << "duck_" << filesSaved << ".pcd";
 		string filename = stream.str();
 		if (pcl::io::savePCDFile(filename, *pOutput, true) == 0) {
 			filesSaved++;

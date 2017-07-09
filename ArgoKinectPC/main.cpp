@@ -1,3 +1,8 @@
+#include <vtkAutoInit.h>
+
+VTK_MODULE_INIT(vtkRenderingOpenGL2);
+VTK_MODULE_INIT(vtkRenderingFreeType);
+
 #include "stdafx.h"
 #include "Kinect.h"
 

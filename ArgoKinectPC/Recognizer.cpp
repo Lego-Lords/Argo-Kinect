@@ -13,12 +13,19 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/common/transforms.h>
+#include <pcl/common/centroid.h>
+#include <pcl/features/fpfh_omp.h>
+#include <pcl/registration/sample_consensus_prerejective.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/common/time.h>
+#include <pcl/point_types.h>
+#include <pcl/registration/icp.h>
 
 
 Recognizer::Recognizer() {
-	selectedModel = 1;
+	selectedModel = 3;
 	maxSteps = 0;
-	currStep = 0;
+	currStep = 5;
 	hasUpdate = true;
 
 	cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
@@ -36,6 +43,10 @@ Recognizer::Recognizer() {
 
 	model_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
 	scene_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
+
+	// Visualization
+	this->viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("ICP Viewer");
+
 }
 
 
@@ -44,7 +55,7 @@ Recognizer::~Recognizer() {
 
 void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer) {
 	this->input = input;
-	this->viewer = viewer;
+	
 	//if no model is selected, wait for selection
 	if (selectedModel == 0) {
 		//get selection from database
@@ -56,8 +67,10 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, b
 			hasUpdate = false;
 		}
 		if (input->size() > 0 && cloudAgainst->size() > 0) {
+			estimatePose();
+			//performICP();
 			// compute normals
-			computeNormals(cloudAgainst, model_normals, 10);
+			/*computeNormals(cloudAgainst, model_normals, 10);
 			computeNormals(input, scene_normals, 10);
 		
 			//downsample clouds to get keypoints
@@ -76,7 +89,8 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, b
 			computeReferenceFrames(scene_keypoints, scene_normals, input, model_rf, 0.015f);
 			
 			//cluster correspondences to find object
-			clusterCorrespondences(0.015f, 5.0f);
+			clusterCorrespondences(0.015f, 5.0f);*/
+
 
 		}
 	}
@@ -88,6 +102,7 @@ void Recognizer::getCloudToCompare() {
 	switch (selectedModel) {
 		case 1: stepfile = snowcat; break;
 		case 2: stepfile = pyramid; break;
+		case 3: stepfile = quacktro; break;
 	}
 	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", cloudAgainst);
 }
@@ -164,4 +179,115 @@ void Recognizer::clusterCorrespondences(float binSize, float thresh) {
 	std::cout << "Correspondences found: " << corrs->size() << std::endl;
 	std::cout << "Model instances found: " << rototranslations.size () << std::endl;
 
+}
+
+
+void Recognizer::estimatePose()
+{
+	//compute centroids of both clouds
+	Eigen::Vector4f sceneCentroid, modelCentroid, poseTranslate;
+	pcl::compute3DCentroid(*input, sceneCentroid);
+	pcl::compute3DCentroid(*cloudAgainst, modelCentroid);
+
+	//get the difference between the 2 centroids
+	poseTranslate(0) = sceneCentroid(0) - modelCentroid(0);
+	poseTranslate(1) = sceneCentroid(1) - modelCentroid(1);
+	poseTranslate(2) = sceneCentroid(2) - modelCentroid(2);
+	poseTranslate(3) = sceneCentroid(3) - modelCentroid(3);
+
+	//std::cout << "estimate translation: " << poseTranslate << std::endl;
+
+	//compute normals at every point
+	//computeNormals(cloudAgainst, model_normals, 10);
+	
+	computeNormals(input, scene_normals, 10);
+
+
+	//viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal>(input, scene_normals, 10, 0.05, "normals");
+
+	// Estimate features
+	/*pcl::console::print_highlight("Estimating features...\n");
+	::FPFHEstimationOMP<pcl::Normal, pcl::Normal, pcl::FPFHSignature33> fest;
+	fest.setRadiusSearch(0.025);
+	fest.setInputCloud(cloudAgainst);
+	fest.setInputNormals(model_normals);
+	fest.compute(*object_features);
+	fest.setInputCloud(scene);
+	fest.setInputNormals(scene);
+	fest.compute(*scene_features);
+
+	// Perform alignment
+	pcl::console::print_highlight("Starting alignment...\n");
+	pcl::FPFHSignature33SampleConsensusPrerejective<>
+	pcl::FPFHSignature33SampleConsensusPrerejective<pcl::Normal, pcl::PointNormal, pcl::FPFHSignature33> align;
+	align.setInputSource(object);
+	align.setSourceFeatures(object_features);
+	align.setInputTarget(scene);
+	align.setTargetFeatures(scene_features);
+	align.setMaximumIterations(50000); // Number of RANSAC iterations
+	align.setNumberOfSamples(3); // Number of points to sample for generating/prerejecting a pose
+	align.setCorrespondenceRandomness(5); // Number of nearest features to use
+	align.setSimilarityThreshold(0.9f); // Polygonal edge length similarity threshold
+	align.setMaxCorrespondenceDistance(2.5f * leaf); // Inlier threshold
+	align.setInlierFraction(0.25f); // Required inlier fraction for accepting a pose hypothesis
+	{
+		pcl::ScopeTime t("Alignment");
+		align.align(*object_aligned);
+	}*/
+
+
+}
+
+void
+Recognizer::print4x4Matrix(const Eigen::Matrix4d & matrix) {
+	printf("Rotation matrix :\n");
+	printf("    | %6.3f %6.3f %6.3f | \n", matrix(0, 0), matrix(0, 1), matrix(0, 2));
+	printf("R = | %6.3f %6.3f %6.3f | \n", matrix(1, 0), matrix(1, 1), matrix(1, 2));
+	printf("    | %6.3f %6.3f %6.3f | \n", matrix(2, 0), matrix(2, 1), matrix(2, 2));
+	printf("Translation vector :\n");
+	printf("t = < %6.3f, %6.3f, %6.3f >\n\n", matrix(0, 3), matrix(1, 3), matrix(2, 3));
+}
+
+void Recognizer::performICP()
+{
+	pread.readPCD("compare_snowcat_1.pcd", input);
+	pread.readPCD("steps/snowcat_step_32.pcd", cloudAgainst);
+	int age;
+	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> input_color(input, 255, 255, 255);
+	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> goal_color (cloudAgainst, 20, 180, 20);
+	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> icp_color(cloud_icp, 180, 20, 20);
+	//viewer->addPointCloud(input, input_color, "input");
+	viewer->addPointCloud(cloudAgainst, goal_color, "target");
+	viewer->addPointCloud(input, icp_color, "aligned");
+	
+
+	int iterations = 1;
+	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
+	pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
+	icp.setMaximumIterations(100);
+	icp.setInputSource(input);
+	icp.setInputTarget(cloudAgainst);
+	bool next_iteration = true;
+
+	while (next_iteration)
+	{
+		icp.align(*input);
+		
+		cin >> age;
+		if (icp.hasConverged()) {
+			printf("\nICP has converged, score is %+.0e\n", icp.getFitnessScore());
+			std::cout << "\nICP transformation " << ++iterations << " : cloud_icp -> cloudAgainst" << std::endl;
+			transformation_matrix = icp.getFinalTransformation().cast<double>();  // WARNING /!\ This is not accurate! For "educational" purpose only!
+			print4x4Matrix(transformation_matrix);
+			//viewer->updatePointCloud(input, icp_color, "aligned");
+		}
+
+		else {
+			PCL_ERROR("\nICP has not converged.\n");
+		}
+	}
+
+	
+
+	
 }
