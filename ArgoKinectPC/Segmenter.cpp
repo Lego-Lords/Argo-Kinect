@@ -50,7 +50,6 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 
 	//remove skin/iwan lang bricks
 	isolateBricks();
-
 	//extractBricks();
 
 	//remove outliers, mga fake colors
@@ -292,12 +291,3 @@ void Segmenter::removeOutliers() {
 	sor.filter(*output);
 	*input = *output;
 }
-
-void Segmenter::createConcaveHull(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output)
-{
-	//pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_hull(new pcl::PointCloud<pcl::PointXYZRGBA>);
-	pcl::ConcaveHull<pcl::PointXYZRGBA> chull;
-	chull.setInputCloud(input);
-	chull.reconstruct(*output);
-}
-
