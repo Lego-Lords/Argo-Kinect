@@ -17,6 +17,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #undef NOMINMAX
+#define PCL_NO_PRECOMPILE
 #include <Kinect.h>
 #include <pcl\visualization\cloud_viewer.h>
 #include <pcl\common\projection_matrix.h>

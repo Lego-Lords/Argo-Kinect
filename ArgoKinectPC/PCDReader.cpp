@@ -13,10 +13,7 @@ PCDReader::~PCDReader()
 }
 
 void PCDReader::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr result) {
-
-	// SAVE TO CLOUD VARIABLE
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
-
+	std::cout << "Going to read: " << modelStepFileName << std::endl;
 	if (pcl::io::loadPCDFile<pcl::PointXYZRGBA>(modelStepFileName, *result) == -1) //* load the file
 	{
 		PCL_ERROR("Couldn't read file test_pcd.pcd \n");

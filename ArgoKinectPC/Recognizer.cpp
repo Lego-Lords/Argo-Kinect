@@ -1,14 +1,11 @@
-#include "stdafx.h"
+#include "stdafx.h" 
 #include "Recognizer.h"
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
-#include <pcl/correspondence.h>
 #include <pcl/features/normal_3d_omp.h>
 #include <pcl/features/shot_omp.h>
 #include <pcl/features/board.h>
 #include <pcl/filters/uniform_sampling.h>
-#include <pcl/recognition/cg/hough_3d.h>
-#include <pcl/recognition/cg/geometric_consistency.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
@@ -20,6 +17,7 @@
 #include <pcl/common/time.h>
 #include <pcl/point_types.h>
 #include <pcl/registration/icp.h>
+#include <pcl/filters/voxel_grid.h>
 
 
 Recognizer::Recognizer() {
@@ -27,8 +25,14 @@ Recognizer::Recognizer() {
 	maxSteps = 0;
 	currStep = 5;
 	hasUpdate = true;
+	trackingActive = false;
 
+	input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+
+	aligned = boost::make_shared<pcl::PointCloud<pcl::PointNormal>>();
+	modelPointNormal = boost::make_shared<pcl::PointCloud<pcl::PointNormal>>();
+	scenePointNormal = boost::make_shared<pcl::PointCloud<pcl::PointNormal>>();
 
 	model_normals = boost::make_shared<pcl::PointCloud<pcl::Normal>>();
 	scene_normals = boost::make_shared<pcl::PointCloud<pcl::Normal>>();
@@ -36,16 +40,18 @@ Recognizer::Recognizer() {
 	model_keypoints = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	scene_keypoints = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 
-	model_descriptors = boost::make_shared<pcl::PointCloud<pcl::SHOT352>>();
-	scene_descriptors = boost::make_shared<pcl::PointCloud<pcl::SHOT352>>();
+	model_features = boost::make_shared<pcl::PointCloud<pcl::FPFHSignature33>>();
+	scene_features = boost::make_shared<pcl::PointCloud<pcl::FPFHSignature33>>();
 
-	corrs = boost::make_shared<pcl::Correspondences>();
+	//corrs = boost::make_shared<pcl::Correspondences>();
 
 	model_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
 	scene_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
 
 	// Visualization
 	this->viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("ICP Viewer");
+	this->viewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
+	this->viewer->addCoordinateSystem(0.1);
 
 }
 
@@ -53,8 +59,7 @@ Recognizer::Recognizer() {
 Recognizer::~Recognizer() {
 }
 
-void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer) {
-	this->input = input;
+void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer) {
 	
 	//if no model is selected, wait for selection
 	if (selectedModel == 0) {
@@ -66,13 +71,20 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, b
 			getCloudToCompare();
 			hasUpdate = false;
 		}
-		if (input->size() > 0 && cloudAgainst->size() > 0) {
-			estimatePose();
-			//performICP();
+		if (scene->size() > 0 && cloudAgainst->size() > 0) {
+			*scene = *input;
+			downsample(input, input, leafsize);
+			downsample(cloudAgainst, cloudAgainst, leafsize);
+			
 			// compute normals
-			/*computeNormals(cloudAgainst, model_normals, 10);
-			computeNormals(input, scene_normals, 10);
-		
+			//computeNormals(cloudAgainst, model_normals, 0.01);
+			//computeNormals(input, scene_normals, 0.01);
+
+			if (!trackingActive)
+				estimatePose();
+			//performICP();
+			
+		/*
 			//downsample clouds to get keypoints
 			obtainKeypoints(cloudAgainst, model_keypoints, 0.03f);
 			obtainKeypoints(input, scene_keypoints, 0.01f);
@@ -105,20 +117,31 @@ void Recognizer::getCloudToCompare() {
 		case 3: stepfile = quacktro; break;
 	}
 	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", cloudAgainst);
+	std::cout << "Obtained cloud " << cloudAgainst->size() << std::endl;
 }
 
-void Recognizer::computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, int numNeighbors) {
+void Recognizer::computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val) {
 	pcl::NormalEstimationOMP<pcl::PointXYZRGBA, pcl::Normal> norm_est;
-	norm_est.setKSearch(numNeighbors);
+	norm_est.setRadiusSearch(val);
 	norm_est.setInputCloud(input);
 	norm_est.compute(*normals);
 }
 
-void Recognizer::obtainKeypoints(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, float radius) {
-	pcl::UniformSampling<pcl::PointXYZRGBA> sampler;
-	sampler.setInputCloud(input);
-	sampler.setRadiusSearch(radius);
-	sampler.filter(*keypoints);
+void Recognizer::computePointNormals(pcl::PointCloud<pcl::PointNormal>::Ptr input, float val) {
+	pcl::NormalEstimationOMP<pcl::PointNormal, pcl::PointNormal> norm_est;
+	norm_est.setRadiusSearch(val);
+	norm_est.setInputCloud(input);
+	norm_est.compute(*input);
+}
+
+void Recognizer::downsample(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr outputCloud, float leafsize) {
+	pcl::PCLPointCloud2::Ptr cloud_blob(new pcl::PCLPointCloud2), cloud_filtered_blob(new pcl::PCLPointCloud2);
+	pcl::toPCLPointCloud2(*inputCloud, *cloud_blob);
+	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
+	sor.setInputCloud(cloud_blob);
+	sor.setLeafSize(leafsize, leafsize, leafsize);
+	sor.filter(*cloud_filtered_blob);
+	pcl::fromPCLPointCloud2(*cloud_filtered_blob, *outputCloud);
 }
 
 void Recognizer::computeDescriptor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::SHOT352>::Ptr descriptors, float radius) {
@@ -129,7 +152,7 @@ void Recognizer::computeDescriptor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input
 	descEstimator.setSearchSurface(inputCloud);
 	descEstimator.compute(*descriptors);
 }
-
+/*
 void Recognizer::findCorrespondences() {
 	
 	pcl::KdTreeFLANN<pcl::SHOT352> kdsearch;
@@ -149,7 +172,7 @@ void Recognizer::findCorrespondences() {
 			corrs->push_back(corr);
 		}
 	}
-}
+}*/
 
 void Recognizer::computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::ReferenceFrame>::Ptr rf, float radius) {
 	pcl::BOARDLocalReferenceFrameEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::ReferenceFrame> rf_est;
@@ -160,7 +183,7 @@ void Recognizer::computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr 
 	rf_est.setSearchSurface(inputCloud);
 	rf_est.compute(*rf);
 }
-
+/*
 void Recognizer::clusterCorrespondences(float binSize, float thresh) {
 	pcl::Hough3DGrouping<pcl::PointXYZRGBA, pcl::PointXYZRGBA, pcl::ReferenceFrame, pcl::ReferenceFrame> clusterer;
 	clusterer.setHoughBinSize(binSize);
@@ -179,11 +202,12 @@ void Recognizer::clusterCorrespondences(float binSize, float thresh) {
 	std::cout << "Correspondences found: " << corrs->size() << std::endl;
 	std::cout << "Model instances found: " << rototranslations.size () << std::endl;
 
-}
+}*/
 
 
 void Recognizer::estimatePose()
 {
+
 	//compute centroids of both clouds
 	Eigen::Vector4f sceneCentroid, modelCentroid, poseTranslate;
 	pcl::compute3DCentroid(*input, sceneCentroid);
@@ -195,51 +219,71 @@ void Recognizer::estimatePose()
 	poseTranslate(2) = sceneCentroid(2) - modelCentroid(2);
 	poseTranslate(3) = sceneCentroid(3) - modelCentroid(3);
 
+	//convertRGBAtoPointNormal(cloudAgainst, modelPointNormal);
+	//convertRGBAtoPointNormal(input, scenePointNormal);
+
+	copyPointCloud(*cloudAgainst, *modelPointNormal);
+	copyPointCloud(*input, *scenePointNormal);
+
+	computePointNormals(modelPointNormal, 0.01);
+	computePointNormals(scenePointNormal, 0.01);
+
+
 	//std::cout << "estimate translation: " << poseTranslate << std::endl;
 
-	//compute normals at every point
-	//computeNormals(cloudAgainst, model_normals, 10);
-	
-	computeNormals(input, scene_normals, 10);
-
-
-	//viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal>(input, scene_normals, 10, 0.05, "normals");
-
+	//viewer->addPointCloud(cloudAgainst, "model");
 	// Estimate features
-	/*pcl::console::print_highlight("Estimating features...\n");
-	::FPFHEstimationOMP<pcl::Normal, pcl::Normal, pcl::FPFHSignature33> fest;
+	std::cout << "Estimating features... " << std::endl;
+	pcl::FPFHEstimationOMP<pcl::PointNormal, pcl::PointNormal, pcl::FPFHSignature33> fest;
 	fest.setRadiusSearch(0.025);
-	fest.setInputCloud(cloudAgainst);
-	fest.setInputNormals(model_normals);
-	fest.compute(*object_features);
-	fest.setInputCloud(scene);
-	fest.setInputNormals(scene);
+	fest.setInputCloud(modelPointNormal);
+	fest.setInputNormals(modelPointNormal);
+	fest.compute(*model_features);
+
+	fest.setInputCloud(scenePointNormal);
+	fest.setInputNormals(scenePointNormal);
 	fest.compute(*scene_features);
 
 	// Perform alignment
-	pcl::console::print_highlight("Starting alignment...\n");
-	pcl::FPFHSignature33SampleConsensusPrerejective<>
-	pcl::FPFHSignature33SampleConsensusPrerejective<pcl::Normal, pcl::PointNormal, pcl::FPFHSignature33> align;
-	align.setInputSource(object);
-	align.setSourceFeatures(object_features);
-	align.setInputTarget(scene);
+	std::cout << "Starting alignment... " << std::endl;
+	pcl::SampleConsensusPrerejective<pcl::PointNormal, pcl::PointNormal, pcl::FPFHSignature33> align;
+	align.setInputSource(modelPointNormal);
+	align.setSourceFeatures(model_features);
+	align.setInputTarget(scenePointNormal);
 	align.setTargetFeatures(scene_features);
 	align.setMaximumIterations(50000); // Number of RANSAC iterations
 	align.setNumberOfSamples(3); // Number of points to sample for generating/prerejecting a pose
 	align.setCorrespondenceRandomness(5); // Number of nearest features to use
 	align.setSimilarityThreshold(0.9f); // Polygonal edge length similarity threshold
-	align.setMaxCorrespondenceDistance(2.5f * leaf); // Inlier threshold
+	align.setMaxCorrespondenceDistance(2.5f * leafsize); // Inlier threshold
 	align.setInlierFraction(0.25f); // Required inlier fraction for accepting a pose hypothesis
 	{
 		pcl::ScopeTime t("Alignment");
-		align.align(*object_aligned);
-	}*/
+		align.align(*aligned);
+	}
+
+	if (align.hasConverged()) {
+		// Print results
+		std::cout << "Alignment converged... " << std::endl;
+		Eigen::Matrix4f transformation = align.getFinalTransformation();
+		//print4x4Matrix(transformation);
+		printf("Inliers: %i/%i\n", align.getInliers().size(), cloudAgainst->size());
+
+		// Show alignment
+		viewer->addPointCloud(scenePointNormal, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(scenePointNormal, 0.0, 255.0, 0.0), "scene");
+		viewer->addPointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");
+		viewer->spin();
+	}
+	else {
+		std::cout << "Alignment failed... " << std::endl;
+	}
+
+	trackingActive = true;
 
 
 }
 
-void
-Recognizer::print4x4Matrix(const Eigen::Matrix4d & matrix) {
+void Recognizer::print4x4Matrix(const Eigen::Matrix4d & matrix) {
 	printf("Rotation matrix :\n");
 	printf("    | %6.3f %6.3f %6.3f | \n", matrix(0, 0), matrix(0, 1), matrix(0, 2));
 	printf("R = | %6.3f %6.3f %6.3f | \n", matrix(1, 0), matrix(1, 1), matrix(1, 2));
@@ -255,10 +299,10 @@ void Recognizer::performICP()
 	int age;
 	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> input_color(input, 255, 255, 255);
 	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> goal_color (cloudAgainst, 20, 180, 20);
-	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> icp_color(cloud_icp, 180, 20, 20);
+	//pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> icp_color(aligned, 180, 20, 20);
 	//viewer->addPointCloud(input, input_color, "input");
 	viewer->addPointCloud(cloudAgainst, goal_color, "target");
-	viewer->addPointCloud(input, icp_color, "aligned");
+	//viewer->addPointCloud(input, icp_color, "aligned");
 	
 
 	int iterations = 1;
@@ -286,8 +330,14 @@ void Recognizer::performICP()
 			PCL_ERROR("\nICP has not converged.\n");
 		}
 	}
+}
 
-	
-
-	
+void Recognizer::convertRGBAtoPointNormal(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointNormal>::Ptr output)
+{
+	output->resize(input->points.size());
+	for (size_t i = 0; i < input->points.size(); ++i) {
+		output->points[i].x = input->points[i].x;
+		output->points[i].y = input->points[i].y;
+		output->points[i].z = input->points[i].z;
+	}
 }

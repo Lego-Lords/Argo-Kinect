@@ -55,7 +55,7 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	//remove outliers, mga fake colors
 	removeOutliers();
 
-	std::cout << "final size: " << output->size() << std::endl;
+	//std::cout << "final size: " << output->size() << std::endl;
 
 	
 }
