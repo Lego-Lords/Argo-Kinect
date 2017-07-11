@@ -14,10 +14,38 @@ PCDHelper::~PCDHelper()
 
 void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr result) {
 	std::cout << "Going to read: " << modelStepFileName << std::endl;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr results(new pcl::PointCloud<pcl::PointXYZRGB>);
+	//pcl::PCLPointCloud2::Ptr cloud(new pcl::PCLPointCloud2);
 	if (pcl::io::loadPCDFile<pcl::PointXYZRGBA>(modelStepFileName, *result) == -1) //* load the file
 	{
 		PCL_ERROR("Couldn't read file test_pcd.pcd \n");
 		//return (-1);
+	}
+	else
+	{
+		/*pcl::PointXYZRGBA point;
+		//pcl::fromPCLPointCloud2(*cloud, *result);
+		for (size_t i = 0; i < result->points.size(); ++i)
+		{
+			//uint32_t rgb = *reinterpret_cast<int*>(&(results->points[i].rgb));
+
+			std::cout << " R:   " << result->points[i].r << std::endl;
+
+			//uint8_t r = (rgb >> 16) & 0x0000ff;
+			//uint8_t g = (rgb >> 8) & 0x0000ff;
+			//uint8_t b = (rgb) & 0x0000ff;
+			//point.r = r;
+			//std::cout << " R:   " << point.r << std::endl;
+			//point.g = g;
+			//point.b = b;
+			//point.a = 1.0;
+			//point.x = results->points[i].x;
+			//point.y = results->points[i].y;
+			//point.z = results->points[i].z;
+
+			//result->push_back(point);
+		}
+		//result->points.*/
 	}
 	/*std::cout << "Loaded "
 		<< cloud->width * cloud->height

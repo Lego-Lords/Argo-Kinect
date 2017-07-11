@@ -13,6 +13,7 @@
 #include <pcl/common/centroid.h>
 #include <pcl/features/fpfh_omp.h>
 #include <pcl/registration/sample_consensus_prerejective.h>
+#include <pcl/registration/ia_ransac.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/common/time.h>
 #include <pcl/point_types.h>
@@ -21,14 +22,16 @@
 
 
 Recognizer::Recognizer() {
-	selectedModel = 3;
+	selectedModel = 5;
 	maxSteps = 0;
-	currStep = 5;
+	currStep = 1;
 	hasUpdate = true;
 	trackingActive = false;
+	useEstimate = false;
 
 	input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+	visual = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 
 	aligned = boost::make_shared<pcl::PointCloud<pcl::PointNormal>>();
 	modelPointNormal = boost::make_shared<pcl::PointCloud<pcl::PointNormal>>();
@@ -48,10 +51,14 @@ Recognizer::Recognizer() {
 	model_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
 	scene_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
 
+	initialTransform = Eigen::Matrix4f::Identity();
+
 	// Visualization
 	this->viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("ICP Viewer");
 	this->viewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
 	this->viewer->addCoordinateSystem(0.1);
+
+	this->viewer->addPointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
 
 }
 
@@ -74,15 +81,21 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene, b
 		if (scene->size() > 0 && cloudAgainst->size() > 0) {
 			*input = *scene;
 			downsample(input, input, leafsize);
+			*visual = *cloudAgainst;
 			downsample(cloudAgainst, cloudAgainst, leafsize);
-			
-			// compute normals
-			//computeNormals(cloudAgainst, model_normals, 0.01);
-			//computeNormals(input, scene_normals, 0.01);
+
+			copyPointCloud(*cloudAgainst, *modelPointNormal);
+			copyPointCloud(*input, *scenePointNormal);
+
+			computePointNormals(modelPointNormal, 0.01);
+			computePointNormals(scenePointNormal, 0.01);
 
 			if (!trackingActive)
+			{
 				estimatePose();
+			}
 			//performICP();
+				
 			
 		/*
 			//downsample clouds to get keypoints
@@ -115,8 +128,10 @@ void Recognizer::getCloudToCompare() {
 		case 1: stepfile = snowcat; break;
 		case 2: stepfile = pyramid; break;
 		case 3: stepfile = quacktro; break;
+		case 4: stepfile = jay; break;
+		case 5: stepfile = heart; break;
 	}
-	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", cloudAgainst);
+	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".cd", cloudAgainst);
 	std::cout << "Obtained cloud " << cloudAgainst->size() << std::endl;
 }
 
@@ -207,31 +222,6 @@ void Recognizer::clusterCorrespondences(float binSize, float thresh) {
 
 void Recognizer::estimatePose()
 {
-
-	//compute centroids of both clouds
-	Eigen::Vector4f sceneCentroid, modelCentroid, poseTranslate;
-	pcl::compute3DCentroid(*input, sceneCentroid);
-	pcl::compute3DCentroid(*cloudAgainst, modelCentroid);
-
-	//get the difference between the 2 centroids
-	poseTranslate(0) = sceneCentroid(0) - modelCentroid(0);
-	poseTranslate(1) = sceneCentroid(1) - modelCentroid(1);
-	poseTranslate(2) = sceneCentroid(2) - modelCentroid(2);
-	poseTranslate(3) = sceneCentroid(3) - modelCentroid(3);
-
-	//convertRGBAtoPointNormal(cloudAgainst, modelPointNormal);
-	//convertRGBAtoPointNormal(input, scenePointNormal);
-
-	copyPointCloud(*cloudAgainst, *modelPointNormal);
-	copyPointCloud(*input, *scenePointNormal);
-
-	computePointNormals(modelPointNormal, 0.01);
-	computePointNormals(scenePointNormal, 0.01);
-
-
-	//std::cout << "estimate translation: " << poseTranslate << std::endl;
-
-	//viewer->addPointCloud(cloudAgainst, "model");
 	// Estimate features
 	std::cout << "Estimating features... " << std::endl;
 	pcl::FPFHEstimationOMP<pcl::PointNormal, pcl::PointNormal, pcl::FPFHSignature33> fest;
@@ -246,17 +236,19 @@ void Recognizer::estimatePose()
 
 	// Perform alignment
 	std::cout << "Starting alignment... " << std::endl;
-	pcl::SampleConsensusPrerejective<pcl::PointNormal, pcl::PointNormal, pcl::FPFHSignature33> align;
+	pcl::SampleConsensusInitialAlignment<pcl::PointNormal, pcl::PointNormal, pcl::FPFHSignature33> align;
 	align.setInputSource(modelPointNormal);
 	align.setSourceFeatures(model_features);
 	align.setInputTarget(scenePointNormal);
 	align.setTargetFeatures(scene_features);
-	align.setMaximumIterations(50000); // Number of RANSAC iterations
-	align.setNumberOfSamples(3); // Number of points to sample for generating/prerejecting a pose
-	align.setCorrespondenceRandomness(5); // Number of nearest features to use
-	align.setSimilarityThreshold(0.9f); // Polygonal edge length similarity threshold
+	align.setMinSampleDistance(0.05f);
+
+	align.setMaximumIterations(5000); // Number of RANSAC iterations
+	//align.setNumberOfSamples(3); // Number of points to sample for generating/prerejecting a pose
+	//align.setCorrespondenceRandomness(2); // Number of nearest features to use
+	//align.setSimilarityThreshold(0.6f); // Polygonal edge length similarity threshold
 	align.setMaxCorrespondenceDistance(2.5f * leafsize); // Inlier threshold
-	align.setInlierFraction(0.25f); // Required inlier fraction for accepting a pose hypothesis
+	//align.setInlierFraction(0.25f); // Required inlier fraction for accepting a pose hypothesis
 	{
 		pcl::ScopeTime t("Alignment");
 		align.align(*aligned);
@@ -266,54 +258,49 @@ void Recognizer::estimatePose()
 		trackingActive = true;
 		// Print results
 		std::cout << "Alignment converged... " << std::endl;
-		Eigen::Matrix4f transformation = align.getFinalTransformation();
-		//print4x4Matrix(transformation);
-		printf("Inliers: %i/%i\n", align.getInliers().size(), cloudAgainst->size());
+
+		//printf("Inliers: %i/%i\n", align.getInliers().size(), cloudAgainst->size());
+
+		initialTransform = align.getFinalTransformation();
 
 		// Show alignment
-		viewer->addPointCloud(scenePointNormal, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(scenePointNormal, 0.0, 255.0, 0.0), "scene");
-		viewer->addPointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");
-		//viewer->updatePointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");
-
-		viewer->spinOnce();
-		performICP();
-		
+		//viewer->addPointCloud(scenePointNormal, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(scenePointNormal, 0.0, 255.0, 0.0), "scene");
+		viewer->updatePointCloud(visual, "virtual");
+		//viewer->addPointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");		
 	}
 	else {
 		std::cout << "Alignment failed... " << std::endl;
 	}
 }
 
-void Recognizer::print4x4Matrix(const Eigen::Matrix4d & matrix) {
-	printf("Rotation matrix :\n");
-	printf("    | %6.3f %6.3f %6.3f | \n", matrix(0, 0), matrix(0, 1), matrix(0, 2));
-	printf("R = | %6.3f %6.3f %6.3f | \n", matrix(1, 0), matrix(1, 1), matrix(1, 2));
-	printf("    | %6.3f %6.3f %6.3f | \n", matrix(2, 0), matrix(2, 1), matrix(2, 2));
-	printf("Translation vector :\n");
-	printf("t = < %6.3f, %6.3f, %6.3f >\n\n", matrix(0, 3), matrix(1, 3), matrix(2, 3));
-}
-
 void Recognizer::performICP()
 {
-	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
+	Eigen::Matrix4f transformation_matrix = Eigen::Matrix4f::Identity();
 	pcl::IterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> icp;
-	icp.setMaximumIterations(100);
-	icp.setInputSource(aligned);
+	icp.setMaximumIterations(1000);
+	icp.setMaxCorrespondenceDistance(0.05);
+	icp.setRANSACOutlierRejectionThreshold(1.5);
+	icp.setEuclideanFitnessEpsilon(1);
+	icp.setTransformationEpsilon(1e-9);
+
+	icp.setInputSource(modelPointNormal);
 	icp.setInputTarget(scenePointNormal);
 	
-	icp.align(*aligned);
+	icp.align(*aligned, initialTransform);
 	if (icp.hasConverged()) {
-		//printf("\nICP has converged, score is %+.0e\n", icp.getFitnessScore());
-		//std::cout << "\nICP transformation " << ++iterations << " : cloud_icp -> cloudAgainst" << std::endl;
-		transformation_matrix = icp.getFinalTransformation().cast<double>();  // WARNING /!\ This is not accurate! For "educational" purpose only!
+		transformation_matrix = icp.getFinalTransformation();
+		initialTransform = transformation_matrix;
+		
+		std::cout << "ICP converged, score: " << icp.getFitnessScore() << std::endl;
 		print4x4Matrix(transformation_matrix);
-		viewer->updatePointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");
+		pcl::transformPointCloud(*visual, *visual, transformation_matrix);
+		viewer->updatePointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
 		
 		viewer->spinOnce();
 	}
 
 	else {
-		PCL_ERROR("\nICP has not converged.\n");
+		std::cout << "ICP failed" << std::endl;
 	}
 	
 }
@@ -327,3 +314,14 @@ void Recognizer::convertRGBAtoPointNormal(pcl::PointCloud<pcl::PointXYZRGBA>::Pt
 		output->points[i].z = input->points[i].z;
 	}
 }
+
+
+void Recognizer::print4x4Matrix(const Eigen::Matrix4f & matrix) {
+	printf("Rotation matrix :\n");
+	printf("    | %6.3f %6.3f %6.3f | \n", matrix(0, 0), matrix(0, 1), matrix(0, 2));
+	printf("R = | %6.3f %6.3f %6.3f | \n", matrix(1, 0), matrix(1, 1), matrix(1, 2));
+	printf("    | %6.3f %6.3f %6.3f | \n", matrix(2, 0), matrix(2, 1), matrix(2, 2));
+	printf("Translation vector :\n");
+	printf("t = < %6.3f, %6.3f, %6.3f >\n\n", matrix(0, 3), matrix(1, 3), matrix(2, 3));
+}
+

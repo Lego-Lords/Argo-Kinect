@@ -30,6 +30,7 @@ private:
 	pcl::PointCloud<pcl::PointNormal>::Ptr scenePointNormal;
 	pcl::PointCloud<pcl::PointNormal>::Ptr modelPointNormal;
 	pcl::PointCloud<pcl::PointNormal>::Ptr aligned;
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr visual;
 
 	PCDHelper pread;
 	SQLConnect sqlCon;
@@ -43,10 +44,15 @@ private:
 
 	bool hasUpdate;
 	bool trackingActive;
+	bool useEstimate;
+
+	Eigen::Matrix4f initialTransform;
 
 	const std::string snowcat = "steps/snowcat_step_";
 	const std::string pyramid = "steps/pyramid_step_";
 	const std::string quacktro = "steps/duck_step_";
+	const std::string jay = "steps/letterJ_step_";
+	const std::string heart = "steps/heart_step_";
 	const float leafsize = 0.005f;
 
 public:
@@ -59,7 +65,7 @@ public:
 	void downsample(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr outputCloud, float leafsize);
 	void computeDescriptor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::SHOT352>::Ptr descriptors, float radius);
 	void computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::ReferenceFrame>::Ptr rf, float radius);
-	void print4x4Matrix(const Eigen::Matrix4d & matrix);
+	void print4x4Matrix(const Eigen::Matrix4f & matrix);
 	void estimatePose();
 	void performICP();
 	void convertRGBAtoPointNormal(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointNormal>::Ptr output);

@@ -101,8 +101,7 @@ void Kinect::run() {
 
 			recognizer.recognizeState(pOutput, viewer);
 		}
-			
-		checkSave();
+
 		//if (matching) {
 			//match();
 		//}
@@ -359,20 +358,5 @@ void Kinect::initializeArgo() {
 	sceneFound = 0;
 }
 
-void Kinect::checkSave() {
-	if (saveCloud && pOutput->size() > 0) {
-		saveCloud = false;
-		stringstream stream;
-		stream << "duck_" << filesSaved << ".pcd";
-		string filename = stream.str();
-		if (pcl::io::savePCDFile(filename, *pOutput, true) == 0) {
-			filesSaved++;
-			cout << "Saved " << filename << "." << endl;
-		}
-		else PCL_ERROR("Problem saving %s.\n", filename.c_str());
-
-
-	}
-}
 
 
