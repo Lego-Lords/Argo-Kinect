@@ -1,18 +1,18 @@
 #include "stdafx.h"
-#include "PCDReader.h"
+#include "PCDHelper.h"
 #include "string"
 
 
-PCDReader::PCDReader()
+PCDHelper::PCDHelper()
 {
 }
 
 
-PCDReader::~PCDReader()
+PCDHelper::~PCDHelper()
 {
 }
 
-void PCDReader::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr result) {
+void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr result) {
 	std::cout << "Going to read: " << modelStepFileName << std::endl;
 	if (pcl::io::loadPCDFile<pcl::PointXYZRGBA>(modelStepFileName, *result) == -1) //* load the file
 	{
@@ -50,6 +50,15 @@ void PCDReader::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::Poin
 
 	//return cloud;
 }
+
+void PCDHelper::savePCD(std::string filename, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input) {
+	if (pcl::io::savePCDFile(filename, *input, true) == 0) {
+		cout << "Saved " << filename << "." << endl;
+	}
+	
+	else PCL_ERROR("Problem saving %s.\n", filename.c_str());
+}
+
 
 //pcl::PointCloud<pcl::PointXYZ>PCDReader getPCD() {
 //	return cloud;

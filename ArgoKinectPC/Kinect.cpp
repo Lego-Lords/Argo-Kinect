@@ -10,7 +10,6 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/surface/convex_hull.h>
 #include <pcl/segmentation/extract_clusters.h>
-#include <pcl/kdtree/kdtree.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/features/normal_3d_omp.h>
 #include <pcl/features/shot_omp.h>
@@ -18,8 +17,6 @@
 #include <pcl/filters/uniform_sampling.h>
 #include <pcl/recognition/cg/hough_3d.h>
 #include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/common/transforms.h>
 #include <pcl/console/parse.h>
 #include <pcl/recognition/hv/hv_go.h>
@@ -35,9 +32,6 @@
 #include <pcl/recognition/cg/geometric_consistency.h>
 #include <pcl/recognition/hv/hv_go.h>
 #include <pcl/registration/icp.h>
-
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/common/transforms.h> 
 #include <pcl/console/parse.h>
 
@@ -105,7 +99,7 @@ void Kinect::run() {
 		{
 			segmenter.segmentCloud(cloud, pOutput, viewer);
 
-			//recognizer.recognizeState(pOutput, viewer);
+			recognizer.recognizeState(pOutput, viewer);
 		}
 			
 		checkSave();
@@ -230,10 +224,8 @@ inline void Kinect::initializePointCloud() {
 	// Initialize camera position
 	viewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
 
-	//viewer->registerKeyboardCallback(keyboardEventOccurred);
 	// Add Coordinate System
 	viewer->addCoordinateSystem(0.1);
-	//viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*)NULL);
 	viewer->addPointCloud(cloud, "cloud");
 }
 

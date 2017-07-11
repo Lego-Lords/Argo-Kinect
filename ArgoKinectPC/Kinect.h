@@ -5,7 +5,7 @@
 #include "Recognizer.h"
 #include "Kinect.h"
 #include "SQLConnect.h"
-#include "PCDReader.h"
+#include "PCDHelper.h"
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
 class Kinect
@@ -50,7 +50,6 @@ private:
 	std::string stepfile;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudAgainst;
 	SQLConnect con;
-	PCDReader pread;
 	MYSQL * connection;
 	bool datagathering;
 	bool matching;

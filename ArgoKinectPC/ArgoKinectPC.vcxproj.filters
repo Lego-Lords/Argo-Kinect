@@ -6,20 +6,20 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OpenNISimple.cpp" />
     <ClCompile Include="Segmenter.cpp" />
-    <ClCompile Include="PCDReader.cpp" />
     <ClCompile Include="source.cpp" />
     <ClCompile Include="SQLConnect.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="Recognizer.cpp" />
+    <ClCompile Include="PCDHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Kinect.h" />
     <ClInclude Include="Segmenter.h" />
     <ClInclude Include="SQLConnect.h" />
-    <ClInclude Include="PCDReader.h" />
     <ClInclude Include="ICPCompare.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Recognizer.h" />
+    <ClInclude Include="PCDHelper.h" />
   </ItemGroup>
 </Project>

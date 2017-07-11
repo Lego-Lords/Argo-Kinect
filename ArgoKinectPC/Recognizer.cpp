@@ -72,7 +72,7 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene, b
 			hasUpdate = false;
 		}
 		if (scene->size() > 0 && cloudAgainst->size() > 0) {
-			*scene = *input;
+			*input = *scene;
 			downsample(input, input, leafsize);
 			downsample(cloudAgainst, cloudAgainst, leafsize);
 			
@@ -263,6 +263,7 @@ void Recognizer::estimatePose()
 	}
 
 	if (align.hasConverged()) {
+		trackingActive = true;
 		// Print results
 		std::cout << "Alignment converged... " << std::endl;
 		Eigen::Matrix4f transformation = align.getFinalTransformation();
@@ -272,15 +273,15 @@ void Recognizer::estimatePose()
 		// Show alignment
 		viewer->addPointCloud(scenePointNormal, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(scenePointNormal, 0.0, 255.0, 0.0), "scene");
 		viewer->addPointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");
-		viewer->spin();
+		//viewer->updatePointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");
+
+		viewer->spinOnce();
+		performICP();
+		
 	}
 	else {
 		std::cout << "Alignment failed... " << std::endl;
 	}
-
-	trackingActive = true;
-
-
 }
 
 void Recognizer::print4x4Matrix(const Eigen::Matrix4d & matrix) {
@@ -294,42 +295,27 @@ void Recognizer::print4x4Matrix(const Eigen::Matrix4d & matrix) {
 
 void Recognizer::performICP()
 {
-	pread.readPCD("compare_snowcat_1.pcd", input);
-	pread.readPCD("steps/snowcat_step_32.pcd", cloudAgainst);
-	int age;
-	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> input_color(input, 255, 255, 255);
-	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> goal_color (cloudAgainst, 20, 180, 20);
-	//pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> icp_color(aligned, 180, 20, 20);
-	//viewer->addPointCloud(input, input_color, "input");
-	viewer->addPointCloud(cloudAgainst, goal_color, "target");
-	//viewer->addPointCloud(input, icp_color, "aligned");
-	
-
-	int iterations = 1;
 	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
-	pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
+	pcl::IterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> icp;
 	icp.setMaximumIterations(100);
-	icp.setInputSource(input);
-	icp.setInputTarget(cloudAgainst);
-	bool next_iteration = true;
-
-	while (next_iteration)
-	{
-		icp.align(*input);
+	icp.setInputSource(aligned);
+	icp.setInputTarget(scenePointNormal);
+	
+	icp.align(*aligned);
+	if (icp.hasConverged()) {
+		//printf("\nICP has converged, score is %+.0e\n", icp.getFitnessScore());
+		//std::cout << "\nICP transformation " << ++iterations << " : cloud_icp -> cloudAgainst" << std::endl;
+		transformation_matrix = icp.getFinalTransformation().cast<double>();  // WARNING /!\ This is not accurate! For "educational" purpose only!
+		print4x4Matrix(transformation_matrix);
+		viewer->updatePointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");
 		
-		cin >> age;
-		if (icp.hasConverged()) {
-			printf("\nICP has converged, score is %+.0e\n", icp.getFitnessScore());
-			std::cout << "\nICP transformation " << ++iterations << " : cloud_icp -> cloudAgainst" << std::endl;
-			transformation_matrix = icp.getFinalTransformation().cast<double>();  // WARNING /!\ This is not accurate! For "educational" purpose only!
-			print4x4Matrix(transformation_matrix);
-			//viewer->updatePointCloud(input, icp_color, "aligned");
-		}
-
-		else {
-			PCL_ERROR("\nICP has not converged.\n");
-		}
+		viewer->spinOnce();
 	}
+
+	else {
+		PCL_ERROR("\nICP has not converged.\n");
+	}
+	
 }
 
 void Recognizer::convertRGBAtoPointNormal(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointNormal>::Ptr output)

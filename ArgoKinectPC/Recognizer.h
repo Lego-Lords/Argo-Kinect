@@ -1,7 +1,7 @@
 #ifndef RECOGNIZE_H
 #define RECOGNIZE_H
 #include "stdafx.h"
-#include "PCDReader.h"
+#include "PCDHelper.h"
 #include "SQLConnect.h"
 
 class Recognizer {
@@ -31,7 +31,7 @@ private:
 	pcl::PointCloud<pcl::PointNormal>::Ptr modelPointNormal;
 	pcl::PointCloud<pcl::PointNormal>::Ptr aligned;
 
-	PCDReader pread;
+	PCDHelper pread;
 	SQLConnect sqlCon;
 	MYSQL* connection;
 
@@ -52,7 +52,7 @@ private:
 public:
 	Recognizer();
 	~Recognizer();
-	void recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer);
+	void recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer);
 	void getCloudToCompare();
 	void computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val);
 	void computePointNormals(pcl::PointCloud<pcl::PointNormal>::Ptr input, float val);

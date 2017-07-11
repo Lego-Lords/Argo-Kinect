@@ -37,25 +37,26 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	/*************** Segmentation Pipeline ***************/
 	//downsample, lower the resolution of the kinect so it would be faster to process
 	//downsampleCloud();
+	if (input->size() > 0) {
+		//crop the area that the kinect can see
+		lowerVisibleArea("z", 0.2, 0.9);
+		lowerVisibleArea("x", -0.2, 0.2);
 
-	//crop the area that the kinect can see
-	lowerVisibleArea("z", 0.2, 0.9);
-	lowerVisibleArea("x", -0.2, 0.2);
+		//remove largest plane
+		//segmentPlane();
 
-	//remove largest plane
-	//segmentPlane();
+		//remove lighting
+		normalizeColor();
 
-	//remove lighting
-	normalizeColor();
+		//remove skin/iwan lang bricks
+		isolateBricks();
+		//extractBricks();
 
-	//remove skin/iwan lang bricks
-	isolateBricks();
-	//extractBricks();
+		//remove outliers, mga fake colors
+		removeOutliers();
+	}
 
-	//remove outliers, mga fake colors
-	removeOutliers();
-
-	//std::cout << "final size: " << output->size() << std::endl;
+	std::cout << "final size: " << output->size() << std::endl;
 
 	
 }
