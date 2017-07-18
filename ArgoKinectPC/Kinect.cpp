@@ -28,8 +28,6 @@
 #include <pcl/features/shot_omp.h>
 #include <pcl/features/board.h>
 #include <pcl/filters/uniform_sampling.h>
-#include <pcl/recognition/cg/hough_3d.h>
-#include <pcl/recognition/cg/geometric_consistency.h>
 #include <pcl/recognition/hv/hv_go.h>
 #include <pcl/registration/icp.h>
 #include <pcl/common/transforms.h> 
@@ -98,8 +96,8 @@ void Kinect::run() {
 		if (cloud->size() > 0)
 		{
 			segmenter.segmentCloud(cloud, pOutput, viewer);
-
-			recognizer.recognizeState(pOutput, viewer);
+			if (pOutput->size() > 0)
+				recognizer.recognizeState(pOutput);
 		}
 
 		//if (matching) {

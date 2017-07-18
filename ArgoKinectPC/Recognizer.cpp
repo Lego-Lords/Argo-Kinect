@@ -19,19 +19,26 @@
 #include <pcl/point_types.h>
 #include <pcl/registration/icp.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/recognition/cg/hough_3d.h>
+#include <pcl/recognition/ransac_based/obj_rec_ransac.h>
 
 
 Recognizer::Recognizer() {
-	selectedModel = 5;
-	maxSteps = 0;
-	currStep = 1;
+	selectedModel = 3;
+	maxSteps = 6;
+	currStep = 5;
 	hasUpdate = true;
 	trackingActive = false;
 	useEstimate = false;
 
+
 	input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+
+
 	visual = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+	nextStepModel = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+	currentStepModel = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 
 	aligned = boost::make_shared<pcl::PointCloud<pcl::PointNormal>>();
 	modelPointNormal = boost::make_shared<pcl::PointCloud<pcl::PointNormal>>();
@@ -43,86 +50,150 @@ Recognizer::Recognizer() {
 	model_keypoints = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	scene_keypoints = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 
+	model_descriptors = boost::make_shared<pcl::PointCloud<pcl::SHOT352>>();
+	scene_descriptors = boost::make_shared<pcl::PointCloud<pcl::SHOT352>>();
+
 	model_features = boost::make_shared<pcl::PointCloud<pcl::FPFHSignature33>>();
 	scene_features = boost::make_shared<pcl::PointCloud<pcl::FPFHSignature33>>();
 
-	//corrs = boost::make_shared<pcl::Correspondences>();
 
 	model_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
 	scene_rf = boost::make_shared<pcl::PointCloud<pcl::ReferenceFrame>>();
 
 	initialTransform = Eigen::Matrix4f::Identity();
-
 	// Visualization
 	this->viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("ICP Viewer");
 	this->viewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
 	this->viewer->addCoordinateSystem(0.1);
 
-	this->viewer->addPointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
-
+	//this->viewer->addPointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
+	getCloudToCompare(nextStepModel);
+	//centerCloud(nextStepModel);
+	this->viewer->addPointCloud(nextStepModel, "try");
+	//this->viewer->spinOnce();
 }
 
 
 Recognizer::~Recognizer() {
 }
 
-void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer) {
-	
+void Recognizer::init()
+{
+	corrs = boost::make_shared<pcl::Correspondences>();
+
+}
+
+
+void Recognizer::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
+
+	Eigen::Vector4f centroid;
+	pcl::compute3DCentroid(*cloud, centroid);
+
+	Eigen::Affine3f tMatrix;
+	pcl::getTransformation(0, 0, 0, 0, 0, 0, tMatrix);
+
+	pcl::transformPointCloud(*cloud, *cloud, tMatrix);
+}
+
+
+void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
+
 	//if no model is selected, wait for selection
 	if (selectedModel == 0) {
 		//get selection from database
 		selectedModel = sqlCon.getCurrentStep(connection);
 	}
 	else {
-		if (hasUpdate) {
-			getCloudToCompare();
-			hasUpdate = false;
-		}
-		if (scene->size() > 0 && cloudAgainst->size() > 0) {
-			*input = *scene;
-			downsample(input, input, leafsize);
-			*visual = *cloudAgainst;
-			downsample(cloudAgainst, cloudAgainst, leafsize);
-
-			copyPointCloud(*cloudAgainst, *modelPointNormal);
-			copyPointCloud(*input, *scenePointNormal);
-
-			computePointNormals(modelPointNormal, 0.01);
-			computePointNormals(scenePointNormal, 0.01);
-
-			if (!trackingActive)
-			{
-				estimatePose();
+		if (currStep != maxSteps) {
+			init();
+			if (hasUpdate) {
+				if (currStep != 0)
+					*currentStepModel = *nextStepModel;
+				getCloudToCompare(nextStepModel);
+				hasUpdate = false;
 			}
-			//performICP();
+			if (scene->size() > 0 && !trackingActive) {
+				*input = *scene;
+				viewer->spinOnce();
+				/*std::cout << "Input cloud: " << input->size() << std::endl;
+
+				std::cout << "Computing normals... " << std::endl;
+				computeNormals(input, scene_normals, 10);
+				computeNormals(nextStepModel, model_normals, 10);
+
+				//recognizeRANSAC();
 				
-			
-		/*
-			//downsample clouds to get keypoints
-			obtainKeypoints(cloudAgainst, model_keypoints, 0.03f);
-			obtainKeypoints(input, scene_keypoints, 0.01f);
-			
-			//compute descriptor for keypoints
-			computeDescriptor(cloudAgainst, model_keypoints, model_normals, model_descriptors, 0.02f);
-			computeDescriptor(input, scene_keypoints, scene_normals, scene_descriptors, 0.02f);
-			
-			//find correspondences
-			findCorrespondences();
+				std::cout << "Obtaining keypoints... " << scene_keypoints->size() << std::endl;
+				std::cout << "Obtaining keypoints... " << model_keypoints->size() << std::endl;
+				obtainKeypoints(input, scene_keypoints, leafsize);
+				obtainKeypoints(nextStepModel, model_keypoints, leafsize);
 
-			//compute keypoints then cluster correspondences found
-			computeReferenceFrames(model_keypoints, model_normals, cloudAgainst, model_rf, 0.015f);
-			computeReferenceFrames(scene_keypoints, scene_normals, input, model_rf, 0.015f);
-			
-			//cluster correspondences to find object
-			clusterCorrespondences(0.015f, 5.0f);*/
+				std::cout << "Computing scene descriptors.. " << std::endl;
+				//compute descriptor for keypoints
+				computeDescriptor(input, scene_keypoints, scene_normals, scene_descriptors, 0.06f);
+				std::cout << "Computing model descriptors.. " << std::endl;
+				computeDescriptor(nextStepModel, model_keypoints, model_normals, model_descriptors, 0.06f);
+				std::cout << "Obtaining descriptors... " << scene_descriptors->size() << std::endl;
+				std::cout << "Obtaining descriptors... " << model_descriptors->size() << std::endl;
+
+				std::cout << "Finding correspondences... " << std::endl;
+				//find correspondences
+				findCorrespondences();
+
+				std::cout << "Computing ref frames... " << std::endl;
+				//compute keypoints then cluster correspondences found
+				computeReferenceFrames(model_keypoints, model_normals, nextStepModel, model_rf, 0.015f);
+				computeReferenceFrames(scene_keypoints, scene_normals, input, scene_rf, 0.015f);
+				std::cout << "Obtaining ref... " << scene_rf->size() << std::endl;
+				std::cout << "Obtaining ref... " << model_rf->size() << std::endl;
 
 
+				std::cout << "Clustering correspondences... " << std::endl;
+				//cluster correspondences to find object
+				clusterCorrespondences(0.015f, 10.0f); */
+				//trackingActive = true;
+				
+				//performICP();
+				
+				 /*
+				std::cout << "Downsampling... " << std::endl;
+				downsample(input, input, leafsize);
+				*visual = *cloudAgainst;
+				downsample(nextStepModel, nextStepModel, leafsize);
+				copyPointCloud(*cloudAgainst, *modelPointNormal);
+				copyPointCloud(*input, *scenePointNormal);
+				
+				computePointNormals(modelPointNormal, 0.01);
+				computePointNormals(scenePointNormal, 0.01);
+				if (!trackingActive) {
+					estimatePose();
+				}
+				performICP();*/
+				
+
+			}
 		}
 	}
-	
 }
 
-void Recognizer::getCloudToCompare() {
+void Recognizer::recognizeRANSAC()
+{
+	//Object for recognition output
+	std::list<pcl::recognition::ObjRecRANSAC::Output> recog_output;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr object(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr scene(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::copyPointCloud(*nextStepModel, *object);
+	pcl::copyPointCloud(*input, *scene);
+	const float pair_width = 100.0f;
+	const float voxel_size = leafsize;
+	std::cout << "Recognizing using RANSAC" << std::endl;
+	pcl::recognition::ObjRecRANSAC recognition(pair_width, voxel_size);//recognition object
+	recognition.addModel(*object, *model_normals, "next step");
+
+	recognition.recognize(*scene, *scene_normals, recog_output, 0.99f);
+}
+
+void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved) {
 	std::string stepfile = "";
 	switch (selectedModel) {
 		case 1: stepfile = snowcat; break;
@@ -131,22 +202,29 @@ void Recognizer::getCloudToCompare() {
 		case 4: stepfile = jay; break;
 		case 5: stepfile = heart; break;
 	}
-	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".cd", cloudAgainst);
-	std::cout << "Obtained cloud " << cloudAgainst->size() << std::endl;
+	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", saved);
+	std::cout << "Obtained cloud " << saved->size() << std::endl;
 }
 
 void Recognizer::computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val) {
 	pcl::NormalEstimationOMP<pcl::PointXYZRGBA, pcl::Normal> norm_est;
 	norm_est.setRadiusSearch(val);
-	norm_est.setInputCloud(input);
+	norm_est.setInputCloud(inputCloud);
 	norm_est.compute(*normals);
 }
 
-void Recognizer::computePointNormals(pcl::PointCloud<pcl::PointNormal>::Ptr input, float val) {
+void Recognizer::computePointNormals(pcl::PointCloud<pcl::PointNormal>::Ptr inputCloud, float val) {
 	pcl::NormalEstimationOMP<pcl::PointNormal, pcl::PointNormal> norm_est;
 	norm_est.setRadiusSearch(val);
-	norm_est.setInputCloud(input);
-	norm_est.compute(*input);
+	norm_est.setInputCloud(inputCloud);
+	norm_est.compute(*inputCloud);
+}
+
+void Recognizer::obtainKeypoints(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, float radius) {
+	pcl::UniformSampling<pcl::PointXYZRGBA> sampler;
+	sampler.setInputCloud(inputCloud);
+	sampler.setRadiusSearch(radius);
+	sampler.filter(*keypoints);
 }
 
 void Recognizer::downsample(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr outputCloud, float leafsize) {
@@ -167,7 +245,7 @@ void Recognizer::computeDescriptor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input
 	descEstimator.setSearchSurface(inputCloud);
 	descEstimator.compute(*descriptors);
 }
-/*
+
 void Recognizer::findCorrespondences() {
 	
 	pcl::KdTreeFLANN<pcl::SHOT352> kdsearch;
@@ -187,8 +265,28 @@ void Recognizer::findCorrespondences() {
 			corrs->push_back(corr);
 		}
 	}
-}*/
+	std::cout << "Correspondences found: " << corrs->size() << std::endl;
+}
+/**void Recognizer::clusterCorrespondences(float binSize, float thresh) {
+	std::vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Matrix4f> > rototranslations;
+	std::vector < pcl::Correspondences > clustered_corrs;
+	pcl::GeometricConsistencyGrouping<pcl::PointXYZRGBA, pcl::PointXYZRGBA> gc_clusterer;
+	gc_clusterer.setGCSize(binSize);
+	gc_clusterer.setGCThreshold(thresh);
 
+	gc_clusterer.setInputCloud(model_keypoints);
+	gc_clusterer.setSceneCloud(scene_keypoints);
+	gc_clusterer.setModelSceneCorrespondences(corrs);
+
+	//gc_clusterer.cluster (clustered_corrs);
+	std::cout << "Recognize clusters " << std::endl;
+	gc_clusterer.recognize(rototranslations, clustered_corrs);
+
+	
+	//std::cout << "Model instances found: " << rototranslations.size() << std::endl;
+
+}
+/**/
 void Recognizer::computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::ReferenceFrame>::Ptr rf, float radius) {
 	pcl::BOARDLocalReferenceFrameEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::ReferenceFrame> rf_est;
 	rf_est.setFindHoles(true);
@@ -198,7 +296,7 @@ void Recognizer::computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr 
 	rf_est.setSearchSurface(inputCloud);
 	rf_est.compute(*rf);
 }
-/*
+
 void Recognizer::clusterCorrespondences(float binSize, float thresh) {
 	pcl::Hough3DGrouping<pcl::PointXYZRGBA, pcl::PointXYZRGBA, pcl::ReferenceFrame, pcl::ReferenceFrame> clusterer;
 	clusterer.setHoughBinSize(binSize);
@@ -211,13 +309,13 @@ void Recognizer::clusterCorrespondences(float binSize, float thresh) {
 	clusterer.setSceneCloud(scene_keypoints);
 	clusterer.setSceneRf(scene_rf);
 	clusterer.setModelSceneCorrespondences(corrs);
-
+	std::cout << "hallo found: " << corrs->size() << std::endl;
 	clusterer.recognize(rototranslations, clustCorrs);
 
-	std::cout << "Correspondences found: " << corrs->size() << std::endl;
+	
 	std::cout << "Model instances found: " << rototranslations.size () << std::endl;
 
-}*/
+}
 
 
 void Recognizer::estimatePose()
@@ -290,7 +388,7 @@ void Recognizer::performICP()
 	if (icp.hasConverged()) {
 		transformation_matrix = icp.getFinalTransformation();
 		initialTransform = transformation_matrix;
-		
+		//std::cout << "Outliers: " << icp. << std::endl;
 		std::cout << "ICP converged, score: " << icp.getFitnessScore() << std::endl;
 		print4x4Matrix(transformation_matrix);
 		pcl::transformPointCloud(*visual, *visual, transformation_matrix);

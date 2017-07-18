@@ -14,17 +14,21 @@ PCDHelper::~PCDHelper()
 
 void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr result) {
 	std::cout << "Going to read: " << modelStepFileName << std::endl;
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr results(new pcl::PointCloud<pcl::PointXYZRGB>);
-	//pcl::PCLPointCloud2::Ptr cloud(new pcl::PCLPointCloud2);
-	if (pcl::io::loadPCDFile<pcl::PointXYZRGBA>(modelStepFileName, *result) == -1) //* load the file
+	pcl::PCLPointCloud2 cloud;
+	if (pcl::io::loadPCDFile(modelStepFileName, cloud) == -1) //* load the file
 	{
 		PCL_ERROR("Couldn't read file test_pcd.pcd \n");
 		//return (-1);
 	}
 	else
 	{
+		std::cout << "Fields: " << pcl::getFieldsList(cloud).c_str() << std::endl;
+		pcl::fromPCLPointCloud2(cloud, *result);
+		for (size_t i = 0; i < result->size(); i++) {
+			result->points[i].a = 255;
+		}
 		/*pcl::PointXYZRGBA point;
-		//pcl::fromPCLPointCloud2(*cloud, *result);
+
 		for (size_t i = 0; i < result->points.size(); ++i)
 		{
 			//uint32_t rgb = *reinterpret_cast<int*>(&(results->points[i].rgb));

@@ -22,6 +22,8 @@ class Segmenter {
 		void lowerVisibleArea(std::string axis, float min, float max);
 		void downsampleCloud();
 		void segmentPlane();
+		void alignPlaneToAxis();
+		void centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud);
 		void isolateBricks();
 		void filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin);
 		void normalizeColor();

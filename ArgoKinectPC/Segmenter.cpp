@@ -26,21 +26,27 @@ Segmenter::~Segmenter() {
 void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output, boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer) {
 	//initialize data so it can be used in other functions, point class ptrs to actual ptrs in main
 	this->input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();; 
-	*(this->input) = *input;//input is what functions use
-	this->output = output; //output is result of the function
-
-
-	this->viewer = viewer; //for visualization
-
-	*output = *input;
+	
 
 	/*************** Segmentation Pipeline ***************/
 	//downsample, lower the resolution of the kinect so it would be faster to process
 	//downsampleCloud();
 	if (input->size() > 0) {
+		*(this->input) = *input;//input is what functions use
+		this->output = output; //output is result of the function
+
+
+		this->viewer = viewer; //for visualization
+
+		*output = *input;
+
+		
+
 		//crop the area that the kinect can see
 		lowerVisibleArea("z", 0.2, 0.9);
 		lowerVisibleArea("x", -0.2, 0.2);
+
+		//alignPlaneToAxis();
 
 		//remove largest plane
 		//segmentPlane();
@@ -57,8 +63,6 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 	}
 
 	 //std::cout << "final size: " << output->size() << std::endl;
-
-	
 }
 
 void Segmenter::lowerVisibleArea(std::string axis, float min, float max) {
@@ -92,7 +96,7 @@ void Segmenter::segmentPlane() {
 	seg.setModelType(pcl::SACMODEL_PLANE);
 	seg.setMethodType(pcl::SAC_RANSAC);
 	seg.setMaxIterations(100);
-	seg.setDistanceThreshold(0.002);
+	seg.setDistanceThreshold(0.006);
 
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 	int i = 0, nr_points = (int)input->points.size();
@@ -106,6 +110,49 @@ void Segmenter::segmentPlane() {
 	extract.setNegative(true);
 	extract.filter(*output);
 	*input = *output;
+}
+
+void Segmenter::alignPlaneToAxis() {
+	if (input->size() > 0) {
+		centerCloud(input);
+
+		pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+		pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+		pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
+
+		seg.setOptimizeCoefficients(true);
+		seg.setModelType(pcl::SACMODEL_PLANE);
+		seg.setMethodType(pcl::SAC_RANSAC);
+		seg.setMaxIterations(100);
+		seg.setDistanceThreshold(0.006);
+
+		seg.setInputCloud(input);
+		seg.segment(*inliers, *coefficients);
+
+		Eigen::Matrix<float, 1, 3> floor_plane_normal_vector, xz_plane_normal_vector, rotation_vector;
+
+		floor_plane_normal_vector[0] = coefficients->values[0];
+		floor_plane_normal_vector[1] = coefficients->values[1];
+		floor_plane_normal_vector[2] = coefficients->values[2];
+
+
+		xz_plane_normal_vector[0] = 0.0;
+		xz_plane_normal_vector[1] = 1.0;
+		xz_plane_normal_vector[2] = 0.0;
+
+		rotation_vector = xz_plane_normal_vector.cross(floor_plane_normal_vector);
+		//float theta
+		float theta = atan2(rotation_vector.norm(), xz_plane_normal_vector.dot(floor_plane_normal_vector));
+
+		//float theta = acos(floor_plane_normal_vector.dot(xz_plane_normal_vector) / sqrt(pow(coefficients->values[0], 2) + pow(coefficients->values[1], 2) + pow(coefficients->values[2], 2)));
+
+		Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
+		transform_2.translation() << 0, 0, 0;
+		transform_2.rotate(Eigen::AngleAxisf(theta, rotation_vector.normalized()));
+		//std::cout << "Transformation matrix: " << std::endl << transform_2.matrix() << std::endl;
+		pcl::transformPointCloud(*input, *output, transform_2);
+		*input = *output;
+	}
 }
 
 int Segmenter::mod(int a, int b) {
@@ -286,9 +333,22 @@ void Segmenter::normalizeColor() {
 
 void Segmenter::removeOutliers() {
 	pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor;
-	sor.setInputCloud(input);
-	sor.setMeanK(50);
-	sor.setStddevMulThresh(0.01);
-	sor.filter(*output);
-	*input = *output;
+	if (input->size() > 0) {
+		sor.setInputCloud(input);
+		sor.setMeanK(50);
+		sor.setStddevMulThresh(0.01);
+		sor.filter(*output);
+		*input = *output;
+	}
+}
+
+void Segmenter::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
+
+	Eigen::Vector4f centroid;
+	pcl::compute3DCentroid(*cloud, centroid);
+
+	Eigen::Affine3f tMatrix;
+	pcl::getTransformation(0, 0, 0, 0, 0, 0, tMatrix);
+
+	pcl::transformPointCloud(*cloud, *cloud, tMatrix);
 }

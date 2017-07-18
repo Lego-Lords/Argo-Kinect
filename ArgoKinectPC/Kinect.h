@@ -75,7 +75,6 @@ public:
 	void show();
 	void showPointCloud();
 	void Kinect::keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void * viewer_void);
-	void checkSave();
 };
 
 #endif
