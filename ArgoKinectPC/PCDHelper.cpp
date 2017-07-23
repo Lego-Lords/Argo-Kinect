@@ -17,7 +17,7 @@ void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::Poin
 	pcl::PCLPointCloud2 cloud;
 	if (pcl::io::loadPCDFile(modelStepFileName, cloud) == -1) //* load the file
 	{
-		PCL_ERROR("Couldn't read file test_pcd.pcd \n");
+		//PCL_ERR OR("Couldn't read file test_pcd.pcd \n");
 		//return (-1);
 	}
 	else

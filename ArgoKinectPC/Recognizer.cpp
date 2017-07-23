@@ -68,7 +68,7 @@ Recognizer::Recognizer() {
 
 	//this->viewer->addPointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
 	getCloudToCompare(nextStepModel);
-	//centerCloud(nextStepModel);
+	centerCloud(nextStepModel);
 	this->viewer->addPointCloud(nextStepModel, "try");
 	//this->viewer->spinOnce();
 }
@@ -88,11 +88,13 @@ void Recognizer::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
 
 	Eigen::Vector4f centroid;
 	pcl::compute3DCentroid(*cloud, centroid);
+	std::cout << "Centroid: " << centroid << std::endl;
 
-	Eigen::Affine3f tMatrix;
-	pcl::getTransformation(0, 0, 0, 0, 0, 0, tMatrix);
-
-	pcl::transformPointCloud(*cloud, *cloud, tMatrix);
+	Eigen::Affine3f tMatrix = Eigen::Affine3f::Identity();
+	tMatrix.translate(centroid.head<3>());
+	//pcl::getTransformation(0, 0, 0, 0, 0, 0, tMatrix);
+	
+	pcl::transformPointCloud(*cloud, *cloud, tMatrix.inverse());
 }
 
 
@@ -120,8 +122,6 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				std::cout << "Computing normals... " << std::endl;
 				computeNormals(input, scene_normals, 10);
 				computeNormals(nextStepModel, model_normals, 10);
-
-				//recognizeRANSAC();
 				
 				std::cout << "Obtaining keypoints... " << scene_keypoints->size() << std::endl;
 				std::cout << "Obtaining keypoints... " << model_keypoints->size() << std::endl;
@@ -174,23 +174,6 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 			}
 		}
 	}
-}
-
-void Recognizer::recognizeRANSAC()
-{
-	//Object for recognition output
-	std::list<pcl::recognition::ObjRecRANSAC::Output> recog_output;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr object(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr scene(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::copyPointCloud(*nextStepModel, *object);
-	pcl::copyPointCloud(*input, *scene);
-	const float pair_width = 100.0f;
-	const float voxel_size = leafsize;
-	std::cout << "Recognizing using RANSAC" << std::endl;
-	pcl::recognition::ObjRecRANSAC recognition(pair_width, voxel_size);//recognition object
-	recognition.addModel(*object, *model_normals, "next step");
-
-	recognition.recognize(*scene, *scene_normals, recog_output, 0.99f);
 }
 
 void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved) {

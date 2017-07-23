@@ -46,7 +46,7 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 		lowerVisibleArea("z", 0.2, 0.9);
 		lowerVisibleArea("x", -0.2, 0.2);
 
-		//alignPlaneToAxis();
+		alignPlaneToAxis();
 
 		//remove largest plane
 		//segmentPlane();
@@ -60,6 +60,9 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 
 		//remove outliers, mga fake colors
 		removeOutliers();
+
+		centerCloud(this->input);
+		*output = *(this->input);
 	}
 
 	 //std::cout << "final size: " << output->size() << std::endl;
@@ -129,7 +132,7 @@ void Segmenter::alignPlaneToAxis() {
 		seg.setInputCloud(input);
 		seg.segment(*inliers, *coefficients);
 
-		Eigen::Matrix<float, 1, 3> floor_plane_normal_vector, xz_plane_normal_vector, rotation_vector;
+		Eigen::Matrix<float, 1, 3> floor_plane_normal_vector, xz_plane_normal_vector, rotation_vector, another_one;
 
 		floor_plane_normal_vector[0] = coefficients->values[0];
 		floor_plane_normal_vector[1] = coefficients->values[1];
@@ -142,14 +145,23 @@ void Segmenter::alignPlaneToAxis() {
 
 		rotation_vector = xz_plane_normal_vector.cross(floor_plane_normal_vector);
 		//float theta
-		float theta = atan2(rotation_vector.norm(), xz_plane_normal_vector.dot(floor_plane_normal_vector));
+		float theta = -atan2(rotation_vector.norm(), xz_plane_normal_vector.dot(floor_plane_normal_vector));
 
 		//float theta = acos(floor_plane_normal_vector.dot(xz_plane_normal_vector) / sqrt(pow(coefficients->values[0], 2) + pow(coefficients->values[1], 2) + pow(coefficients->values[2], 2)));
 
 		Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
 		transform_2.translation() << 0, 0, 0;
 		transform_2.rotate(Eigen::AngleAxisf(theta, rotation_vector.normalized()));
+		//transform_2.rotate(Eigen::AngleAxisf(M_PI, Eigen::Vector3f::UnitZ()));
 		//std::cout << "Transformation matrix: " << std::endl << transform_2.matrix() << std::endl;
+
+		//TODO: rotate again to xz plane 
+
+		pcl::transformPointCloud(*input, *output, transform_2);
+		*input = *output;
+
+		transform_2 = Eigen::Affine3f::Identity();
+		transform_2.rotate(Eigen::AngleAxisf(M_PI, Eigen::Vector3f::UnitX()));
 		pcl::transformPointCloud(*input, *output, transform_2);
 		*input = *output;
 	}
@@ -346,9 +358,10 @@ void Segmenter::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
 
 	Eigen::Vector4f centroid;
 	pcl::compute3DCentroid(*cloud, centroid);
+	//std::cout << "Centroid: " << centroid << std::endl;
 
-	Eigen::Affine3f tMatrix;
-	pcl::getTransformation(0, 0, 0, 0, 0, 0, tMatrix);
+	Eigen::Affine3f tMatrix = Eigen::Affine3f::Identity();
+	tMatrix.translate(centroid.head<3>());
 
-	pcl::transformPointCloud(*cloud, *cloud, tMatrix);
+	pcl::transformPointCloud(*cloud, *cloud, tMatrix.inverse());
 }
