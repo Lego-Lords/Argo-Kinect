@@ -21,12 +21,12 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/recognition/cg/hough_3d.h>
 #include <pcl/recognition/ransac_based/obj_rec_ransac.h>
-
+#include <pcl/filters/passthrough.h>
 
 Recognizer::Recognizer() {
 	selectedModel = 3;
 	maxSteps = 6;
-	currStep = 5;
+	currStep = 0;
 	hasUpdate = true;
 	trackingActive = false;
 	useEstimate = false;
@@ -67,9 +67,10 @@ Recognizer::Recognizer() {
 	this->viewer->addCoordinateSystem(0.1);
 
 	//this->viewer->addPointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
-	getCloudToCompare(nextStepModel);
-	centerCloud(nextStepModel);
-	this->viewer->addPointCloud(nextStepModel, "try");
+	//getCloudToCompare(nextStepModel);
+	//centerCloud(nextStepModel);
+	this->viewer->addPointCloud(visual, "virtual");
+	//this->viewer->addPointCloud(nextStepModel, "try");
 	//this->viewer->spinOnce();
 }
 
@@ -114,7 +115,7 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				getCloudToCompare(nextStepModel);
 				hasUpdate = false;
 			}
-			if (scene->size() > 0 && !trackingActive) {
+			if (scene->size() > 0) {
 				*input = *scene;
 				viewer->spinOnce();
 				/*std::cout << "Input cloud: " << input->size() << std::endl;
@@ -155,12 +156,13 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				
 				//performICP();
 				
-				 /*
-				std::cout << "Downsampling... " << std::endl;
+				
+				//std::cout << "Downsampling... " << std::endl;
+				//lowerVisibleArea(nextStepModel, "z", -0.2, 0.01);
 				downsample(input, input, leafsize);
-				*visual = *cloudAgainst;
+				*visual = *nextStepModel;
 				downsample(nextStepModel, nextStepModel, leafsize);
-				copyPointCloud(*cloudAgainst, *modelPointNormal);
+				copyPointCloud(*nextStepModel, *modelPointNormal);
 				copyPointCloud(*input, *scenePointNormal);
 				
 				computePointNormals(modelPointNormal, 0.01);
@@ -168,7 +170,9 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				if (!trackingActive) {
 					estimatePose();
 				}
-				performICP();*/
+				//performICP();
+
+				viewer->updatePointCloud(visual, "virtual");
 				
 
 			}
@@ -187,6 +191,7 @@ void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved
 	}
 	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", saved);
 	std::cout << "Obtained cloud " << saved->size() << std::endl;
+	centerCloud(saved);
 }
 
 void Recognizer::computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val) {
@@ -218,6 +223,9 @@ void Recognizer::downsample(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, 
 	sor.setLeafSize(leafsize, leafsize, leafsize);
 	sor.filter(*cloud_filtered_blob);
 	pcl::fromPCLPointCloud2(*cloud_filtered_blob, *outputCloud);
+	for (size_t i = 0; i < outputCloud->size(); i++) {
+		outputCloud->points[i].a = 255;
+	}
 }
 
 void Recognizer::computeDescriptor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::SHOT352>::Ptr descriptors, float radius) {
@@ -344,9 +352,11 @@ void Recognizer::estimatePose()
 
 		initialTransform = align.getFinalTransformation();
 
+		pcl::transformPointCloud(*visual, *visual, initialTransform);
+		viewer->updatePointCloud(visual, "virtual");
 		// Show alignment
 		//viewer->addPointCloud(scenePointNormal, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(scenePointNormal, 0.0, 255.0, 0.0), "scene");
-		viewer->updatePointCloud(visual, "virtual");
+		//viewer->updatePointCloud(aligned, "virtual");
 		//viewer->addPointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");		
 	}
 	else {
@@ -375,7 +385,7 @@ void Recognizer::performICP()
 		std::cout << "ICP converged, score: " << icp.getFitnessScore() << std::endl;
 		print4x4Matrix(transformation_matrix);
 		pcl::transformPointCloud(*visual, *visual, transformation_matrix);
-		viewer->updatePointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
+		viewer->updatePointCloud(visual, "virtual");
 		
 		viewer->spinOnce();
 	}
@@ -406,3 +416,10 @@ void Recognizer::print4x4Matrix(const Eigen::Matrix4f & matrix) {
 	printf("t = < %6.3f, %6.3f, %6.3f >\n\n", matrix(0, 3), matrix(1, 3), matrix(2, 3));
 }
 
+void Recognizer::lowerVisibleArea(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  cloud, std::string axis, float min, float max) {
+	pcl::PassThrough<pcl::PointXYZRGBA> pass;
+	pass.setInputCloud(cloud);
+	pass.setFilterFieldName(axis);
+	pass.setFilterLimits(min, max);
+	pass.filter(*cloud);
+}

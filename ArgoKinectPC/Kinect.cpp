@@ -87,6 +87,15 @@ Kinect::~Kinect() {
 // Processing
 void Kinect::run() {
 	while (!viewer->wasStopped()) {
+		string filename;
+		bool save = false;
+		if (pOutput->size() > 0 && training) {
+			
+			cout << "input filename: ";
+			cin >> filename;
+			save = true;
+		}
+
 		// Update Data
 		update();
 		//int age;
@@ -96,14 +105,17 @@ void Kinect::run() {
 		if (cloud->size() > 0)
 		{
 			segmenter.segmentCloud(cloud, pOutput, viewer);
-			if (pOutput->size() > 0)
+
+			if (pOutput->size() > 0 && training && save) {
+				helper.savePCD(filename, pOutput);
+				pictureViewer->updatePointCloud(pOutput, "picture");
+				save = false;
+			}
+			
+
+			if (pOutput->size() > 0 && !training)
 				recognizer.recognizeState(pOutput);
 		}
-
-		//if (matching) {
-			//match();
-		//}
-		//Matchy Matchy
 
 
 		// Draw Data
@@ -111,6 +123,8 @@ void Kinect::run() {
 
 		// Show Data
 		show();
+
+
 	}
 }
 
@@ -351,9 +365,16 @@ void Kinect::initializeArgo() {
 	//connection = con.setUpConnection("localhost", "root", "", "argo_db");
 	//connection = con.setUpConnection("192.168.1.147", "jolo", "p@ssword", "argo");
 	filesSaved = 1;
-	datagathering = false;
+	training = true;
 	matching = false;
 	sceneFound = 0;
+
+	if (training) {
+		pictureViewer = boost::make_shared<pcl::visualization::PCLVisualizer>("Picture Taking Viewer");
+		pictureViewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
+		pictureViewer->addCoordinateSystem(0.1);
+		pictureViewer->addPointCloud(cloud, "picture");
+	}
 }
 
 

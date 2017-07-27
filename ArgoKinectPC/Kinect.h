@@ -51,9 +51,13 @@ private:
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudAgainst;
 	SQLConnect con;
 	MYSQL * connection;
-	bool datagathering;
+	bool training;
 	bool matching;
 	int sceneFound;
+	PCDHelper helper;
+
+	volatile pcl::PointCloud<pcl::PointXYZRGBA>::Ptr lastSegmented;
+	boost::shared_ptr<pcl::visualization::PCLVisualizer> pictureViewer;
 
 public:
 	Kinect();

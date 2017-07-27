@@ -84,11 +84,12 @@ void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::Poin
 }
 
 void PCDHelper::savePCD(std::string filename, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input) {
-	if (pcl::io::savePCDFile(filename, *input, true) == 0) {
+	if (pcl::io::savePCDFile(filename, *input) == 0) {
 		cout << "Saved " << filename << "." << endl;
 	}
 	
 	else PCL_ERROR("Problem saving %s.\n", filename.c_str());
+	cin.get();
 }
 
 

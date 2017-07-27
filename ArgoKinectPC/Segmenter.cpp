@@ -57,7 +57,7 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 		//remove skin/iwan lang bricks
 		isolateBricks();
 		//extractBricks();
-
+		
 		//remove outliers, mga fake colors
 		removeOutliers();
 
@@ -65,11 +65,10 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 		*output = *(this->input);
 	}
 
-	 //std::cout << "final size: " << output->size() << std::endl;
+	std::cout << "final size: " << output->size() << std::endl;
 }
 
 void Segmenter::lowerVisibleArea(std::string axis, float min, float max) {
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  smolCloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
 	pcl::PassThrough<pcl::PointXYZRGBA> pass;
 	pass.setInputCloud(input);
 	pass.setFilterFieldName(axis);
@@ -346,9 +345,10 @@ void Segmenter::normalizeColor() {
 void Segmenter::removeOutliers() {
 	pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor;
 	if (input->size() > 0) {
+		std::cout << "final size: " << output->size() << std::endl;
 		sor.setInputCloud(input);
 		sor.setMeanK(50);
-		sor.setStddevMulThresh(0.01);
+		sor.setStddevMulThresh(1.0);
 		sor.filter(*output);
 		*input = *output;
 	}

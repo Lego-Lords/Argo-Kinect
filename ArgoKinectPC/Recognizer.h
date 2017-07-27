@@ -84,7 +84,7 @@ public:
 	void performICP();
 	void convertRGBAtoPointNormal(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointNormal>::Ptr output);
 	void init();
-	void recognizeRANSAC();
+	void lowerVisibleArea(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  cloud, std::string axis, float min, float max);
 };
 
 #endif
