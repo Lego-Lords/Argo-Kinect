@@ -144,7 +144,7 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 	//if no model is selected, wait for selection
 	if (selectedModel == 0) {
 		//get selection from database
-		std::cout << "Waiting for model to be selected......" << std::endl;
+		std::cout << "Waiting for model to be selected......" << input->size() << std::endl;
 		selectedModel = sqlCon.getCurrentStep(connection);
 		maxSteps = sqlCon.getMaxStep(connection);
 		currStep = 0;
