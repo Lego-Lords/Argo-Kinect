@@ -75,7 +75,7 @@ int SQLConnect::getMaxStep(MYSQL * connection) {
 void SQLConnect::updateNextStep(MYSQL * connection, int nextStep) {
 	//UPDATE `argo`.`argo_app_steps` SET `currentStep`='5' WHERE `id`='1';
 	MYSQL_RES *res;	// the results
-	MYSQL_ROW row;	// the results row (line by line)
+//	MYSQL_ROW row;	// the results row (line by line)
 
 	std::ostringstream buf;
 	buf << "UPDATE `argo`.`argo_app_steps` SET `currentStep`= '" << nextStep << "'" << " WHERE id = '" << modelSelected << "'";
@@ -112,4 +112,36 @@ MYSQL_RES* SQLConnect::mysql_perform_query(MYSQL *connection, char *sql_query) {
 	}
 
 	return mysql_use_result(connection);
+}
+
+void SQLConnect::updateModelSelected(MYSQL * connection, int modelSelected) {
+	//UPDATE `argo`.`argo_app_steps` SET `currentStep`='5' WHERE `id`='1';
+	MYSQL_RES *res;	// the results
+	MYSQL_ROW row;	// the results row (line by line)
+
+	std::ostringstream buf;
+	buf << "UPDATE `argo`.`argo_app_steps` SET `modelSelected`= '" << modelSelected << "'" << " WHERE id = '" << modelSelected << "'";
+
+	string str = buf.str();
+
+	char* s2 = (char *)alloca(str.size() + 1);
+	memcpy(s2, str.c_str(), str.size() + 1);
+	res = mysql_perform_query(connection, s2);
+
+}
+
+void SQLConnect::updateHasError(MYSQL * connection, int hasError) {
+	//UPDATE `argo`.`argo_app_steps` SET `currentStep`='5' WHERE `id`='1';
+	MYSQL_RES *res;	// the results
+	MYSQL_ROW row;	// the results row (line by line)
+
+	std::ostringstream buf;
+	buf << "UPDATE `argo`.`argo_app_steps` SET `hasError`= '" << hasError << "'" << " WHERE id = '" << modelSelected << "'";
+
+	string str = buf.str();
+
+	char* s2 = (char *)alloca(str.size() + 1);
+	memcpy(s2, str.c_str(), str.size() + 1);
+	res = mysql_perform_query(connection, s2);
+
 }

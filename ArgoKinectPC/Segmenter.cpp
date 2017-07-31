@@ -40,10 +40,10 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 
 		*output = *input;
 
-		
+		//downsampleCloud();
 
 		//crop the area that the kinect can see
-		lowerVisibleArea("z", 0.2, 0.9);
+		lowerVisibleArea("z", 0.2, 0.8);
 		lowerVisibleArea("x", -0.2, 0.2);
 
 		alignPlaneToAxis();
@@ -65,7 +65,7 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 		*output = *(this->input);
 	}
 
-	std::cout << "final size: " << output->size() << std::endl;
+	//std::cout << "final size: " << output->size() << std::endl;
 }
 
 void Segmenter::lowerVisibleArea(std::string axis, float min, float max) {
@@ -345,7 +345,7 @@ void Segmenter::normalizeColor() {
 void Segmenter::removeOutliers() {
 	pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor;
 	if (input->size() > 0) {
-		std::cout << "final size: " << output->size() << std::endl;
+		//std::cout << "final size: " << output->size() << std::endl;
 		sor.setInputCloud(input);
 		sor.setMeanK(50);
 		sor.setStddevMulThresh(1.0);

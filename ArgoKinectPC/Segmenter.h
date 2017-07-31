@@ -32,7 +32,6 @@ class Segmenter {
 		void filterHue(pcl::PointCloud<pcl::PointXYZHSV>::Ptr cloud, int hue, int hue_threshold, pcl::PointCloud<pcl::PointXYZHSV>::Ptr output);
 		void PointCloudXYZHSVtoXYZRGBA(pcl::PointCloud<pcl::PointXYZHSV>& in, pcl::PointCloud<pcl::PointXYZRGBA>& output);
 		void filterBrickColor(pcl::PointCloud<pcl::PointXYZHSV>::Ptr filtered, int h, int h_thresh, int sMax, int sMin, int vMax, int vMin);
-		void createConcaveHull(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr output);
 		int mod(int a, int b);
 };
 

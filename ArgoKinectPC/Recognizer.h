@@ -3,6 +3,10 @@
 #include "stdafx.h"
 #include "PCDHelper.h"
 #include "SQLConnect.h"
+#include <flann/flann.h>
+//#include <flann/io/hdf5.h>
+
+typedef std::pair<std::string, std::vector<float> > vfh_model;
 
 class Recognizer {
 private:
@@ -42,7 +46,7 @@ private:
 	pcl::CorrespondencesPtr corrs;
 	
 
-	PCDHelper pread;
+	PCDHelper helper;
 	SQLConnect sqlCon;
 	MYSQL* connection;
 
@@ -55,20 +59,51 @@ private:
 	bool hasUpdate;
 	bool trackingActive;
 	bool useEstimate;
+	bool hasError = false;
 
 	Eigen::Matrix4f initialTransform;
 
-	const std::string snowcat = "steps/snowcat_step_";
-	const std::string pyramid = "steps/pyramid_step_";
-	const std::string quacktro = "steps/duck_step_";
-	const std::string jay = "steps/letterJ_step_";
-	const std::string heart = "steps/heart_step_";
+	const std::string base_dir = "features/";
+
+	const std::string snowcat = "snowcat";
+	const std::string pyramid = "pyramid";
+	const std::string quacktro = "duck";
+	const std::string jay = "letterj";
+	const std::string heart = "heart";
 	const float leafsize = 0.005f;
+
+	const std::string models_hd5_filename = "features/models.hd5";
+	const std::string models_list_filename = "features/models.list";
+	const std::string kdtree_filename = "features/kdtree.idx";
+
+	std::vector<vfh_model> compModels;
+	std::vector<vfh_model> nextStepModels;
+	std::vector<vfh_model> currStepModels;
+
+	flann::Matrix<float> data;
+	vfh_model lowest;
+	bool moveToNextStep = false;
+
+	int numOfCandidates; //ilan yung kukunin niyang (model with angle)
+	int acceptedScore;
+	int numOfIter;
+	int currIter;
+	int currAcceptedCandidateIter;
+	int currAcceptedCandidateIndex;
+	string acceptedCandidates[10][100];
+	int acceptedCandidatesDistance[10][100];
+	bool hasAddedCandidate = false;
+	map<string, unsigned int> acceptedCandidatesFreq;
+	map<string, unsigned int> acceptedCandidatesDistanceMap;
+	map<string, float> acceptedCandidatesAverageMap;
+	string lowestCandidate;
+
 
 public:
 	Recognizer();
 	~Recognizer();
 	void recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene);
+	void computeVFHFeatures(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::VFHSignature308>::Ptr outputHist);
 	void getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved);
 	void centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud);
 	void computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val);
@@ -85,6 +120,11 @@ public:
 	void convertRGBAtoPointNormal(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl::PointCloud<pcl::PointNormal>::Ptr output);
 	void init();
 	void lowerVisibleArea(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  cloud, std::string axis, float min, float max);
+	void loadHistogramsFromFiles();
+	void loadVFHs(const boost::filesystem::path &file_dir, std::string extension, std::string stepfile, std::vector<vfh_model> &models);
+	bool loadHist(const boost::filesystem::path &path, vfh_model &vfh);
+	void nearestKSearch(flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
+		int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances);
 };
 
 #endif

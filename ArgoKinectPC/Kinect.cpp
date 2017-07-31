@@ -103,7 +103,7 @@ void Kinect::run() {
 
 		//Segment Data oh yeah wubalubadubdub
 		if (cloud->size() > 0)
-		{
+		{ 
 			segmenter.segmentCloud(cloud, pOutput, viewer);
 
 			if (pOutput->size() > 0 && training && save) {
@@ -111,9 +111,8 @@ void Kinect::run() {
 				pictureViewer->updatePointCloud(pOutput, "picture");
 				save = false;
 			}
-			
-
-			if (pOutput->size() > 0 && !training)
+			//helper.readPCD("features/duck_step_4_0.pcd", pOutput);
+			if (pOutput->size() > 0 && !training && matching)
 				recognizer.recognizeState(pOutput);
 		}
 
@@ -358,15 +357,15 @@ inline void Kinect::showPointCloud() {
 void Kinect::initializeArgo() {
 	selectedModel = 0;
 	maxSteps = 0;
-	currStep = 1;
+	currStep = 5;
 	updated = true;
 	noSelect = true;
 	saveCloud = true;
-	//connection = con.setUpConnection("localhost", "root", "", "argo_db");
-	//connection = con.setUpConnection("192.168.1.147", "jolo", "p@ssword", "argo");
+	
 	filesSaved = 1;
-	training = true;
-	matching = false;
+	training = false;
+	featureExtraction = false;
+	matching = true;
 	sceneFound = 0;
 
 	if (training) {
@@ -374,6 +373,10 @@ void Kinect::initializeArgo() {
 		pictureViewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
 		pictureViewer->addCoordinateSystem(0.1);
 		pictureViewer->addPointCloud(cloud, "picture");
+	}
+	
+	if (featureExtraction) {
+		trainer.convertToHists();
 	}
 }
 

@@ -12,4 +12,6 @@ public:
 	~PCDHelper();
 	void readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr result);
 	void savePCD(std::string filename, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input);
+	void saveVFHinPCD(std::string filename, pcl::PointCloud<pcl::VFHSignature308>::Ptr input);
+	void readVFHinPCD(std::string filename, pcl::PointCloud<pcl::VFHSignature308>::Ptr cloud);
 };

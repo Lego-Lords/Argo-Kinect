@@ -11,6 +11,7 @@
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="Recognizer.cpp" />
     <ClCompile Include="PCDHelper.cpp" />
+    <ClCompile Include="Trainer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Kinect.h" />
@@ -21,5 +22,6 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Recognizer.h" />
     <ClInclude Include="PCDHelper.h" />
+    <ClInclude Include="Trainer.h" />
   </ItemGroup>
 </Project>

@@ -6,6 +6,7 @@
 #include "Kinect.h"
 #include "SQLConnect.h"
 #include "PCDHelper.h"
+#include "Trainer.h"
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
 class Kinect
@@ -53,8 +54,10 @@ private:
 	MYSQL * connection;
 	bool training;
 	bool matching;
+	bool featureExtraction;
 	int sceneFound;
 	PCDHelper helper;
+	Trainer trainer;
 
 	volatile pcl::PointCloud<pcl::PointXYZRGBA>::Ptr lastSegmented;
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> pictureViewer;

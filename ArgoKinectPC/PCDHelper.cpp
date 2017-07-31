@@ -13,7 +13,7 @@ PCDHelper::~PCDHelper()
 }
 
 void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr result) {
-	std::cout << "Going to read: " << modelStepFileName << std::endl;
+	//std::cout << "Going to read: " << modelStepFileName << std::endl;
 	pcl::PCLPointCloud2 cloud;
 	if (pcl::io::loadPCDFile(modelStepFileName, cloud) == -1) //* load the file
 	{
@@ -22,7 +22,7 @@ void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::Poin
 	}
 	else
 	{
-		std::cout << "Fields: " << pcl::getFieldsList(cloud).c_str() << std::endl;
+		//std::cout << "Fields: " << pcl::getFieldsList(cloud).c_str() << std::endl;
 		pcl::fromPCLPointCloud2(cloud, *result);
 		for (size_t i = 0; i < result->size(); i++) {
 			result->points[i].a = 255;
@@ -84,6 +84,7 @@ void PCDHelper::readPCD(std::string modelStepFileName, pcl::PointCloud<pcl::Poin
 }
 
 void PCDHelper::savePCD(std::string filename, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input) {
+	filename += ".pcd";
 	if (pcl::io::savePCDFile(filename, *input) == 0) {
 		cout << "Saved " << filename << "." << endl;
 	}
@@ -92,7 +93,20 @@ void PCDHelper::savePCD(std::string filename, pcl::PointCloud<pcl::PointXYZRGBA>
 	cin.get();
 }
 
+void PCDHelper::saveVFHinPCD(std::string filename, pcl::PointCloud<pcl::VFHSignature308>::Ptr input) {
+	if (pcl::io::savePCDFile(filename, *input) == 0) {
+		cout << "Saved " << filename << ". Size: " << input->size() << endl;
+	}
 
-//pcl::PointCloud<pcl::PointXYZ>PCDReader getPCD() {
-//	return cloud;
-//}
+	
+	else PCL_ERROR("Problem saving %s.\n", filename.c_str());
+}
+
+void PCDHelper::readVFHinPCD(std::string filename, pcl::PointCloud<pcl::VFHSignature308>::Ptr cloud) {
+	if (pcl::io::loadPCDFile(filename, *cloud) == 0) {
+		cout << "Going to read " << filename << ". Size: " << cloud->size() << endl;
+	}
+
+
+	else PCL_ERROR("Problem reading %s.\n", filename.c_str());
+}

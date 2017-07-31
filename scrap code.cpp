@@ -459,3 +459,56 @@ void Kinect::match() {
 
 
 }
+
+
+
+
+/*clustering corrs method
+std::cout << "Obtaining keypoints... " << scene_keypoints->size() << std::endl;
+obtainKeypoints(input, scene_keypoints, leafsize);
+
+
+std::cout << "Computing scene descriptors.. " << std::endl;
+
+computeDescriptor(input, scene_keypoints, scene_normals, scene_descriptors, 0.06f);
+std::cout << "Computing model descriptors.. " << std::endl;
+computeDescriptor(nextStepModel, model_keypoints, model_normals, model_descriptors, 0.06f);
+std::cout << "Obtaining descriptors... " << scene_descriptors->size() << std::endl;
+std::cout << "Obtaining descriptors... " << model_descriptors->size() << std::endl;
+
+std::cout << "Finding correspondences... " << std::endl;
+//find correspondences
+findCorrespondences();
+
+std::cout << "Computing ref frames... " << std::endl;
+//compute keypoints then cluster correspondences found
+computeReferenceFrames(model_keypoints, model_normals, nextStepModel, model_rf, 0.015f);
+computeReferenceFrames(scene_keypoints, scene_normals, input, scene_rf, 0.015f);
+std::cout << "Obtaining ref... " << scene_rf->size() << std::endl;
+std::cout << "Obtaining ref... " << model_rf->size() << std::endl;
+
+
+std::cout << "Clustering correspondences... " << std::endl;
+//cluster correspondences to find object
+clusterCorrespondences(0.015f, 10.0f);
+//trackingActive = true;
+
+//performICP();
+*/
+
+//std::cout << "Downsampling... " << std::endl;
+//lowerVisibleArea(nextStepModel, "z", -0.2, 0.01);
+/*downsample(input, input, leafsize);
+*visual = *nextStepModel;
+downsample(nextStepModel, nextStepModel, leafsize);
+copyPointCloud(*nextStepModel, *modelPointNormal);
+copyPointCloud(*input, *scenePointNormal);
+
+computePointNormals(modelPointNormal, 10);
+computePointNormals(scenePointNormal, 10);
+//if (!trackingActive) {
+//estimatePose();
+//}
+performICP();
+
+viewer->updatePointCloud(visual, "virtual");*/

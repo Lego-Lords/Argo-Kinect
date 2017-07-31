@@ -20,16 +20,30 @@
 #include <pcl/registration/icp.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/recognition/cg/hough_3d.h>
-#include <pcl/recognition/ransac_based/obj_rec_ransac.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/features/vfh.h>
+#include <flann/flann.h>
+//#include <flann/io/hdf5.h>
+
+
 
 Recognizer::Recognizer() {
+	//connection = con.setUpConnection("localhost", "root", "", "argo_db");
+	//connection = con.setUpConnection("192.168.1.147:8000", "jolo", "p@ssword", "argo");
+
 	selectedModel = 3;
 	maxSteps = 6;
-	currStep = 0;
+	currStep = 4;
 	hasUpdate = true;
 	trackingActive = false;
 	useEstimate = false;
+
+	numOfCandidates = 10; //ilan yung kukunin niyang (model with angle)
+	acceptedScore = 69;
+	numOfIter = 10;
+	currIter = 0;
+	currAcceptedCandidateIter = 0;
+	currAcceptedCandidateIndex = 0;
 
 
 	input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
@@ -105,80 +119,399 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 	if (selectedModel == 0) {
 		//get selection from database
 		selectedModel = sqlCon.getCurrentStep(connection);
+		maxSteps = sqlCon.getMaxStep(connection);
+		currStep = 0;
 	}
 	else {
-		if (currStep != maxSteps) {
+		if (currStep < maxSteps) {
 			init();
 			if (hasUpdate) {
-				if (currStep != 0)
-					*currentStepModel = *nextStepModel;
-				getCloudToCompare(nextStepModel);
+				loadHistogramsFromFiles();
 				hasUpdate = false;
 			}
 			if (scene->size() > 0) {
 				*input = *scene;
-				viewer->spinOnce();
-				/*std::cout << "Input cloud: " << input->size() << std::endl;
+				//viewer->spinOnce();
+				pcl::PointCloud<pcl::VFHSignature308>::Ptr sceneVFH(new pcl::PointCloud<pcl::VFHSignature308>());
 
-				std::cout << "Computing normals... " << std::endl;
-				computeNormals(input, scene_normals, 10);
-				computeNormals(nextStepModel, model_normals, 10);
-				
-				std::cout << "Obtaining keypoints... " << scene_keypoints->size() << std::endl;
-				std::cout << "Obtaining keypoints... " << model_keypoints->size() << std::endl;
-				obtainKeypoints(input, scene_keypoints, leafsize);
-				obtainKeypoints(nextStepModel, model_keypoints, leafsize);
+				std::cout << "Input cloud: " << input->size() << std::endl;
+				std::cout << "Computing scene vfh... " << std::endl;
+				computeVFHFeatures(input, sceneVFH);
 
-				std::cout << "Computing scene descriptors.. " << std::endl;
-				//compute descriptor for keypoints
-				computeDescriptor(input, scene_keypoints, scene_normals, scene_descriptors, 0.06f);
-				std::cout << "Computing model descriptors.. " << std::endl;
-				computeDescriptor(nextStepModel, model_keypoints, model_normals, model_descriptors, 0.06f);
-				std::cout << "Obtaining descriptors... " << scene_descriptors->size() << std::endl;
-				std::cout << "Obtaining descriptors... " << model_descriptors->size() << std::endl;
+				vfh_model sceneHist;
+				sceneHist.second.resize(308);
 
-				std::cout << "Finding correspondences... " << std::endl;
-				//find correspondences
-				findCorrespondences();
-
-				std::cout << "Computing ref frames... " << std::endl;
-				//compute keypoints then cluster correspondences found
-				computeReferenceFrames(model_keypoints, model_normals, nextStepModel, model_rf, 0.015f);
-				computeReferenceFrames(scene_keypoints, scene_normals, input, scene_rf, 0.015f);
-				std::cout << "Obtaining ref... " << scene_rf->size() << std::endl;
-				std::cout << "Obtaining ref... " << model_rf->size() << std::endl;
-
-
-				std::cout << "Clustering correspondences... " << std::endl;
-				//cluster correspondences to find object
-				clusterCorrespondences(0.015f, 10.0f); */
-				//trackingActive = true;
-				
-				//performICP();
-				
-				
-				//std::cout << "Downsampling... " << std::endl;
-				//lowerVisibleArea(nextStepModel, "z", -0.2, 0.01);
-				downsample(input, input, leafsize);
-				*visual = *nextStepModel;
-				downsample(nextStepModel, nextStepModel, leafsize);
-				copyPointCloud(*nextStepModel, *modelPointNormal);
-				copyPointCloud(*input, *scenePointNormal);
-				
-				computePointNormals(modelPointNormal, 0.01);
-				computePointNormals(scenePointNormal, 0.01);
-				if (!trackingActive) {
-					estimatePose();
+				std::vector <pcl::PCLPointField> fields;
+				getFieldIndex(*sceneVFH, "vfh", fields);
+				for (size_t i = 0; i < fields[0].count; ++i) {
+					sceneHist.second[i] = sceneVFH->points[0].histogram[i];
 				}
-				//performICP();
+				sceneHist.first = "scene_histogram";
 
-				viewer->updatePointCloud(visual, "virtual");
+				flann::Matrix<int> k_indices;
+				flann::Matrix<float> k_distances;
+				//flann::Matrix<float> data;
+
+				//flann::load_from_file(data, models_hd5_filename, "training_data");
+				//pcl::console::print_highlight("Training data found. Loaded %d VFH models from %s\n",
+					//(int)data.rows, models_hd5_filename.c_str());
+				int k = 5;
+				flann::Index<flann::ChiSquareDistance<float> > index(data, flann::SavedIndexParams(kdtree_filename));
+				index.buildIndex();
+				nearestKSearch(index, sceneHist, k, k_indices, k_distances);
+
+				pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
+				for (int i = 0; i < k; ++i) {
+					pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
+						i, compModels.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
+				}
+
+/*				std::cout << "fuckme" << std::endl;
+				//searching
 				
 
+				std::cout << "currIter: " << currIter << std::endl;
+				std::cout << "numOfIter: " << numOfIter << std::endl;
+				numOfIter = 10;
+				if(currIter < numOfIter){
+					std::cout << "fuckme1" << std::endl;
+					//print top 5
+					//pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
+					for (int i = 0; i < numOfCandidates; ++i){
+						std::cout << "fuckme2" << std::endl;
+						// add to acceptedScores based on score threshold
+						if (k_distances[0][i] < acceptedScore) {
+							acceptedCandidates[currAcceptedCandidateIter][currAcceptedCandidateIndex] =
+								compModels.at(k_indices[0][i]).first.c_str();
+							acceptedCandidatesDistance[currAcceptedCandidateIter][currAcceptedCandidateIndex] =
+								k_distances[0][i];
+							currAcceptedCandidateIndex++;
+							hasAddedCandidate = true;
+						}
+						pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
+							i, compModels.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
+					}
+					// prepare for next iteration
+					if (hasAddedCandidate)
+						currAcceptedCandidateIter++;
+					currAcceptedCandidateIndex = 0;
+					currIter++;
+				}
+				else { //end of X iterations
+					//GET LOWEST VALUE
+
+					std::cout << "fuckme3" << std::endl;
+					// POPULATE FREQ
+					for (int i = 0; i < numOfIter; i++) {
+						for (int j = 0; j < numOfIter; j++) {
+							std::cout << "fuckme4" << std::endl;
+							std::string currCandidate = acceptedCandidates[i][j];
+							int currDistance = acceptedCandidatesDistance[i][j];
+							if(acceptedCandidatesFreq.find(currCandidate) != acceptedCandidatesFreq.end()) {
+								std::cout << "fuckme5" << std::endl;
+								//candidate already exists
+								acceptedCandidatesFreq[currCandidate]++;
+								acceptedCandidatesDistanceMap[currCandidate] += currDistance;
+							}
+							else {
+								//initialize candidate freq
+								acceptedCandidatesFreq[currCandidate] = 1;
+								acceptedCandidatesDistanceMap[currCandidate] = currDistance;
+							}
+						}
+					}
+
+					//AVG FREQ
+					int distanceMapIndex = 0;
+					for (std::map<string, unsigned int>::iterator it = acceptedCandidatesDistanceMap.begin(); it != acceptedCandidatesDistanceMap.end(); ++it) {
+						std::cout << "fuckme6" << std::endl;
+						acceptedCandidatesAverageMap[it->first] = it->second / acceptedCandidatesFreq[it->first];
+						distanceMapIndex++;
+					}
+					// GET LOWEST
+					lowestCandidate = "";
+					int lowestCandidateDistance;
+					bool isFirstCandidate = true;
+					// show content:
+					for (std::map<string, float>::iterator it = acceptedCandidatesAverageMap.begin(); it != acceptedCandidatesAverageMap.end(); ++it) {
+						
+						std::cout << "fuckme7" << std::endl;
+						string currCand = it->first;
+						float currFreq = it->second;
+
+						if (isFirstCandidate == true) {
+							std::cout << "fuckme8" << std::endl;
+							std::cout << "key: " << it->first << std::endl;
+							std::cout << "value: " << it->second << std::endl;
+							lowestCandidate = it->first;
+							lowestCandidateDistance = it->second;
+							isFirstCandidate = false;
+						}
+						if (currFreq < lowestCandidateDistance) {
+							std::cout << "fuckme9" << std::endl;
+							lowestCandidate = it->first;
+							lowestCandidateDistance = it->second;
+						}
+					}
+
+					// reinitialize
+					currIter = 0;
+					currAcceptedCandidateIter = 0;
+					currAcceptedCandidateIndex = 0;
+					acceptedCandidates[10][100] = { 0 };
+					acceptedCandidates[10][100] = { "" };
+					acceptedCandidatesDistance[10][100] = { 0 };
+					hasAddedCandidate = false;
+					acceptedCandidatesFreq = map<string, unsigned int>();
+					acceptedCandidatesDistanceMap = map<string, unsigned int>();
+					acceptedCandidatesAverageMap = map<string, float>();
+
+					// show matched cloud
+					std::cout << "Matched point cloud: " << lowestCandidate << std::endl;
+					cin.get();
+				}*/
+
+
+				//visualize top cloud
+				std::string viewmodel;
+				switch (selectedModel) {
+					case 1: viewmodel = snowcat; break;
+					case 2: viewmodel = pyramid; break;
+					case 3: viewmodel = quacktro; break;
+					case 4: viewmodel = jay; break;
+					case 5: viewmodel = heart; break;
+				}
+
+				helper.readPCD("templates/" + viewmodel + "/" + compModels.at(k_indices[0][0]).first.c_str(), visual);
+				viewer->updatePointCloud(visual, "virtual");
+
+				int ctr = 0;
+				std::string filenamefirst = compModels.at(k_indices[0][0]).first.c_str();
+				/*unsigned first = filenamefirst.find("step_");
+				unsigned last = filenamefirst.find_last_of("_");
+				string stepstring = filenamefirst.substr(first, last - first);
+				int stepOfFirst = stoi(stepstring);*/
+				for (int i = 0; i < k; i++) {
+					std::string name = compModels.at(k_indices[0][i]).first.c_str();
+					if (name.find("step_" + (currStep + 1)) != std::string::npos)
+						ctr++;
+				}
+
+				if (k_distances[0][0] < 40 && ctr >= k/2+1 && filenamefirst.find("step_" + (currStep + 1)) != std::string::npos) {
+					moveToNextStep = true;
+					pcl::console::print_highlight("Updated accepted!!!");
+				}
+				if (k_distances[0][0] > 55) {
+					hasError = true;
+					pcl::console::print_error("There is an error doe!!!");
+				}
+				else {
+					hasError = false;
+				}
+
+				//string
+				//compModels.at(k_indices[0][i]).first.c_str()
+
+				//distance
+				//k_distances[0][i]
 			}
+/*
+			if (hasError) {
+				sqlCon.updateHasError(connection, 1);
+			}
+			else {
+				sqlCon.updateHasError(connection, 0);
+			}
+
+			//accept step 
+			if (moveToNextStep) {
+				currStep++;
+				sqlCon.updateNextStep(connection, currStep + 1);
+				hasUpdate = true;
+			}*/
+
+		}
+		else {
+			//assembly is finished
+			sqlCon.updateModelSelected(connection, 0);
+		}
+		
+	}
+}
+
+void Recognizer::computeVFHFeatures(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::VFHSignature308>::Ptr outputHist) {
+
+	//compute normals of cloud
+	pcl::PointCloud<pcl::Normal>::Ptr normals = boost::make_shared<pcl::PointCloud<pcl::Normal>>();
+	computeNormals(inputCloud, normals, 10);
+
+
+	pcl::VFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> vfh;
+	vfh.setInputCloud(inputCloud);
+	vfh.setInputNormals(normals);
+	// alternatively, if cloud is of type PointNormal, do vfh.setInputNormals (cloud);
+
+	// Create an empty kdtree representation, and pass it to the FPFH estimation object.
+	// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>());
+	vfh.setSearchMethod(tree);
+
+	// Compute the features
+	vfh.compute(*outputHist);
+}
+
+
+void Recognizer::computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val) {
+	pcl::NormalEstimationOMP<pcl::PointXYZRGBA, pcl::Normal> norm_est;
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>());
+	norm_est.setSearchMethod(tree);
+	norm_est.setKSearch(val);
+	norm_est.setInputCloud(inputCloud);
+	norm_est.compute(*normals);
+}
+
+
+void Recognizer::loadHistogramsFromFiles() {
+	std::string model_dir = base_dir;
+	std::string stepfile;
+	switch (selectedModel) {
+		case 1: model_dir += snowcat; break;
+		case 2: model_dir += pyramid; break;
+		case 3: model_dir += quacktro; break;
+		case 4: model_dir += jay; break;
+		case 5: model_dir += heart; break;
+	}
+
+	//load VFHs of curr step
+	if (nextStepModels.size() != 0)
+		currStepModels.swap(nextStepModels);
+	else if (currStep != 0) {
+		currStepModels.clear();
+		stepfile = "step_" + std::to_string(currStep);
+		loadVFHs(model_dir, ".pcd", stepfile, currStepModels);
+	}
+
+	//loadVFHs of next step
+	nextStepModels.clear();
+	stepfile = "step_" + std::to_string(currStep + 1);
+	loadVFHs(model_dir, ".pcd", stepfile, nextStepModels);
+
+	//combine models of next step and current step
+	compModels.clear();
+	compModels.insert(compModels.end(), currStepModels.begin(), currStepModels.end());
+	compModels.insert(compModels.end(), nextStepModels.begin(), nextStepModels.end());
+
+	flann::Matrix<float> trainingdata(new float[compModels.size() * compModels[0].second.size()], compModels.size(), compModels[0].second.size());
+
+	for (size_t i = 0; i < trainingdata.rows; ++i)
+		for (size_t j = 0; j < trainingdata.cols; ++j)
+			trainingdata[i][j] = compModels[i].second[j];
+
+	data = trainingdata;
+
+	//flann::save_to_file(data, models_hd5_filename, "training_data");
+	/*std::ofstream fs;
+	fs.open(models_list_filename.c_str());
+	for (size_t i = 0; i < compModels.size(); ++i)
+		fs << compModels[i].first << "\n";
+	fs.close();*/
+
+	flann::Index<flann::ChiSquareDistance<float> > index(data, flann::LinearIndexParams());
+	//flann::Index<flann::ChiSquareDistance<float> > index (data, flann::KDTreeIndexParams (4));
+	index.buildIndex();
+	index.save(kdtree_filename);
+	
+	//delete[] data.ptr();
+}
+
+//TODO LAGAY SA .H
+inline void Recognizer::nearestKSearch(flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
+	int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances) {
+	// Query point
+	flann::Matrix<float> p = flann::Matrix<float>(new float[model.second.size()], 1, model.second.size());
+	memcpy(&p.ptr()[0], &model.second[0], p.cols * p.rows * sizeof(float));
+
+	indices = flann::Matrix<int>(new int[k], 1, k);
+	distances = flann::Matrix<float>(new float[k], 1, k);
+	index.knnSearch(p, indices, distances, k, flann::SearchParams(512));
+	delete[] p.ptr();
+}
+
+void Recognizer::loadVFHs(const boost::filesystem::path &file_dir, std::string extension, std::string stepfile, std::vector<vfh_model> &models) {
+	for (boost::filesystem::directory_iterator it(file_dir); it != boost::filesystem::directory_iterator(); ++it) {
+		if (boost::filesystem::is_directory(it->status())) {
+			std::stringstream ss;
+			ss << it->path();
+			//pcl::console::print_highlight("Loading %s (%lu models loaded so far).\n", ss.str().c_str(), (unsigned long)models.size());
+			loadVFHs(it->path(), extension, stepfile, models);
+		}
+		if (boost::filesystem::is_regular_file(it->status()) && boost::filesystem::extension(it->path()) == extension && it->path().filename().string().find(stepfile) != std::string::npos) {
+			//pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+			pcl::PointCloud<pcl::VFHSignature308>::Ptr vfhs(new pcl::PointCloud<pcl::VFHSignature308>());
+
+			helper.readVFHinPCD(it->path().string(), vfhs);
+			vfh_model m;
+			m.second.resize(308);
+
+			std::vector <pcl::PCLPointField> fields;
+			pcl::getFieldIndex(*vfhs, "vfh", fields);
+
+			for (size_t i = 0; i < fields[0].count; ++i) {
+				m.second[i] = vfhs->points[0].histogram[i];
+			}
+			m.first = it->path().filename().string();
+			//if (loadHist(file_dir / it->path().filename(), m))
+			models.push_back(m);
 		}
 	}
 }
+
+
+bool Recognizer::loadHist(const boost::filesystem::path &path, vfh_model &vfh) {
+	int vfh_idx;
+	// Load the file as a PCD
+	try {
+		pcl::PCLPointCloud2 cloud;
+		int version;
+		Eigen::Vector4f origin;
+		Eigen::Quaternionf orientation;
+		pcl::PCDReader r;
+		int type; unsigned int idx;
+		r.readHeader(path.string(), cloud, origin, orientation, version, type, idx);
+
+		vfh_idx = pcl::getFieldIndex(cloud, "vfh");
+		if (vfh_idx == -1)
+			return (false);
+		if ((int)cloud.width * cloud.height != 1)
+			return (false);
+	}
+	catch (const pcl::InvalidConversionException&) {
+		return (false);
+	}
+
+	pcl::PointCloud <pcl::VFHSignature308> point;
+	pcl::io::loadPCDFile(path.string(), point);
+	vfh.second.resize(308);
+
+	std::vector <pcl::PCLPointField> fields;
+	pcl::getFieldIndex(point, "vfh", fields);
+
+	for (size_t i = 0; i < fields[vfh_idx].count; ++i) {
+		vfh.second[i] = point.points[0].histogram[i];
+	}
+	vfh.first = path.string();
+}
+
+
+
+
+
+
+/*ALL OF BELOW ARE TRIAL ONLY NOT MAIN CODE HOHOHOHO*/
+
+
+
+
 
 void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved) {
 	std::string stepfile = "";
@@ -189,21 +522,19 @@ void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved
 		case 4: stepfile = jay; break;
 		case 5: stepfile = heart; break;
 	}
-	pread.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", saved);
+	helper.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", saved);
 	std::cout << "Obtained cloud " << saved->size() << std::endl;
 	centerCloud(saved);
 }
 
-void Recognizer::computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val) {
-	pcl::NormalEstimationOMP<pcl::PointXYZRGBA, pcl::Normal> norm_est;
-	norm_est.setRadiusSearch(val);
-	norm_est.setInputCloud(inputCloud);
-	norm_est.compute(*normals);
-}
+
+
 
 void Recognizer::computePointNormals(pcl::PointCloud<pcl::PointNormal>::Ptr inputCloud, float val) {
 	pcl::NormalEstimationOMP<pcl::PointNormal, pcl::PointNormal> norm_est;
-	norm_est.setRadiusSearch(val);
+	pcl::search::KdTree<pcl::PointNormal>::Ptr tree(new pcl::search::KdTree<pcl::PointNormal>());
+	norm_est.setSearchMethod(tree);
+	norm_est.setKSearch(val);
 	norm_est.setInputCloud(inputCloud);
 	norm_est.compute(*inputCloud);
 }

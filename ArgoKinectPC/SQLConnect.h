@@ -24,7 +24,8 @@ public:
 	int getCurrentStep(MYSQL *connection);
 	int getMaxStep(MYSQL *connection);
 	void updateNextStep(MYSQL *connection, int nextStep);
-
+	void updateModelSelected(MYSQL *connection, int modelSelected);
+	void updateHasError(MYSQL *connection, int hasError);
 
 };
 
