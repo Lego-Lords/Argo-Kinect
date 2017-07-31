@@ -98,6 +98,18 @@ private:
 	map<string, float> acceptedCandidatesAverageMap;
 	string lowestCandidate;
 
+	//used by Kingston
+	int acceptanceThreshold;
+	int numOfIteration;
+	int currentIteration;
+	std::map<std::string, std::pair<float, int> > myMultiValueMap;
+	float leastAverage;
+	string finalAnswer;
+	float distanceThreshold;
+
+	std::pair<string, float> bestCandidate;
+	std::pair<string, float> secondChoiceKaLang;
+
 
 public:
 	Recognizer();
@@ -125,6 +137,7 @@ public:
 	bool loadHist(const boost::filesystem::path &path, vfh_model &vfh);
 	void nearestKSearch(flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
 		int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances);
+	vector<string> split(string str, char delimiter);
 };
 
 #endif

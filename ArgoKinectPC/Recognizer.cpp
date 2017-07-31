@@ -28,10 +28,10 @@
 
 
 Recognizer::Recognizer() {
-	//connection = con.setUpConnection("localhost", "root", "", "argo_db");
-	//connection = con.setUpConnection("192.168.1.147:8000", "jolo", "p@ssword", "argo");
+	//connection = sqlCon.setUpConnection("localhost", "root", "", "argo_db");
+	connection = sqlCon.setUpConnection("192.168.43.221:3306", "jolo", "p@ssword", "argo");
 
-	selectedModel = 3;
+	selectedModel = 0;
 	maxSteps = 6;
 	currStep = 4;
 	hasUpdate = true;
@@ -45,6 +45,20 @@ Recognizer::Recognizer() {
 	currAcceptedCandidateIter = 0;
 	currAcceptedCandidateIndex = 0;
 
+	//used by Kingston
+	acceptanceThreshold = 45;
+	numOfIteration = 30;
+	currentIteration = 0;
+	std::map<std::string, std::pair<float, int> > myMultiValueMap;
+	leastAverage = 1000;
+	finalAnswer = "unknown";
+	distanceThreshold = 5;
+
+	bestCandidate.first = "unknown";
+	bestCandidate.second = 1000;
+
+	secondChoiceKaLang.first = "unknown2";
+	secondChoiceKaLang.second = 1001;
 
 	input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
@@ -112,6 +126,18 @@ void Recognizer::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
 	pcl::transformPointCloud(*cloud, *cloud, tMatrix.inverse());
 }
 
+vector<string> Recognizer::split(string str, char delimiter) {
+	vector<string> internal;
+	stringstream ss(str); // Turn the string into a stream.
+	string tok;
+
+	while (getline(ss, tok, delimiter)) {
+		internal.push_back(tok);
+	}
+
+	return internal;
+}
+
 
 void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 
@@ -128,14 +154,15 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 			if (hasUpdate) {
 				loadHistogramsFromFiles();
 				hasUpdate = false;
+				hasError = false;
 			}
 			if (scene->size() > 0) {
 				*input = *scene;
 				//viewer->spinOnce();
 				pcl::PointCloud<pcl::VFHSignature308>::Ptr sceneVFH(new pcl::PointCloud<pcl::VFHSignature308>());
 
-				std::cout << "Input cloud: " << input->size() << std::endl;
-				std::cout << "Computing scene vfh... " << std::endl;
+				//std::cout << "Input cloud: " << input->size() << std::endl;
+				//std::cout << "Computing scene vfh... " << std::endl;
 				computeVFHFeatures(input, sceneVFH);
 
 				vfh_model sceneHist;
@@ -155,17 +182,180 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				//flann::load_from_file(data, models_hd5_filename, "training_data");
 				//pcl::console::print_highlight("Training data found. Loaded %d VFH models from %s\n",
 					//(int)data.rows, models_hd5_filename.c_str());
-				int k = 5;
+				int k = numOfCandidates;
 				flann::Index<flann::ChiSquareDistance<float> > index(data, flann::SavedIndexParams(kdtree_filename));
 				index.buildIndex();
 				nearestKSearch(index, sceneHist, k, k_indices, k_distances);
 
-				pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
+				/*pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
 				for (int i = 0; i < k; ++i) {
 					pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
 						i, compModels.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
+				}*/
+
+				//string
+				//compModels.at(k_indices[0][i]).first.c_str()
+
+				//distance
+				//k_distances[0][i]
+
+				//index
+				//k_indices[0][i]
+
+
+				//myMultiValueMap.clear();
+
+				if (currentIteration < numOfIteration)
+				{
+					
+					for (int i = 0; i < k; i++) 
+					{
+						if (k_distances[0][i] < acceptanceThreshold)
+						{
+
+							/*candidateMatches[candidateMatchesIndex] = k_indices[0][i];
+							candidateMatchesIndex++;*/
+
+							if (myMultiValueMap.find(compModels.at(k_indices[0][i]).first.c_str()) == myMultiValueMap.end())
+							{
+								// not found
+								//INSERT NEW KEY
+								myMultiValueMap[compModels.at(k_indices[0][i]).first.c_str()] = make_pair(k_distances[0][i], 1);
+							}
+							else {
+								// found
+								//UPDATE NEW KEY
+								myMultiValueMap[compModels.at(k_indices[0][i]).first.c_str()].first += k_distances[0][i];
+								myMultiValueMap[compModels.at(k_indices[0][i]).first.c_str()].second++;
+							}
+						
+						}
+					}
+					if (currentIteration < numOfIteration)
+						currentIteration++;
+					
+					if(currentIteration >= numOfIteration)
+					{
+
+						for (std::map<std::string, std::pair<float, int>>::iterator iter = myMultiValueMap.begin(); iter != myMultiValueMap.end(); ++iter)
+						{
+							//std::cout << "KEY " + iter->first << std::endl;
+							//std::cout << myMultiValueMap[iter->first].first << std::endl;
+							//Must be at least 50%
+							//std::cout << "curr " + currentIteration << std::endl;
+							if (myMultiValueMap[iter->first].second >= .75*numOfIteration)
+							{
+								std::cout << "\hallogoodoccur" << std::endl;
+								float currentAverage = myMultiValueMap[iter->first].first / myMultiValueMap[iter->first].second;
+								if (currentAverage < bestCandidate.second)
+								{
+									secondChoiceKaLang.second = bestCandidate.second;
+									secondChoiceKaLang.first = bestCandidate.first;
+
+									bestCandidate.second = currentAverage;
+									bestCandidate.first = iter->first;
+								}
+
+							}
+
+							//did not find second best
+							if (secondChoiceKaLang.first == "unknown") {
+								//look for second best
+								for (std::map<std::string, std::pair<float, int>>::iterator iter = myMultiValueMap.begin(); iter != myMultiValueMap.end(); ++iter)
+								{
+									if (myMultiValueMap[iter->first].second >= .75*numOfIteration)
+									{
+										float currentAverage = myMultiValueMap[iter->first].first / myMultiValueMap[iter->first].second;
+										if (currentAverage < secondChoiceKaLang.second && currentAverage != bestCandidate.second)
+										{
+											secondChoiceKaLang.second = currentAverage;
+											secondChoiceKaLang.first = iter->first;
+										}
+
+									}
+								}
+							}
+						}
+						std::cout << "\nBest " + bestCandidate.first << std::endl;
+						printf(" computed: %.4f \n", bestCandidate.second);
+
+						std::cout << "\n2nd choice lang " + secondChoiceKaLang.first << std::endl;
+						printf(" computed: %.4f \n", secondChoiceKaLang.second);
+
+						//string delimiter = "_";
+
+						//string best_step = bestCandidate.first.substr(2, bestCandidate.first.find(delimiter));
+						//string second_best_step = secondChoiceKaLang.first.substr(2, secondChoiceKaLang.first.find(delimiter));
+						vector<string> sep1;
+						string best_step;
+						vector<string> sep2;
+						string second_best_step;
+
+						if (bestCandidate.first != "unknown") {
+							sep1 = split(bestCandidate.first, '_');
+							best_step = sep1[2];
+						}
+
+						if (secondChoiceKaLang.first != "unknown" && secondChoiceKaLang.first != "unknown2") {
+							sep2 = split(secondChoiceKaLang.first, '_');
+							second_best_step = sep2[2];
+						}
+
+						//case 1: if unkown best hasError = true
+						if (bestCandidate.first == "unknown" && secondChoiceKaLang.first == "unknown2")
+						{
+							hasError = true;
+							finalAnswer = "unknown";
+						}
+						//case 2: if unkown second take best
+						else if (secondChoiceKaLang.first == "unknown2")
+						{
+							hasError = false;
+							finalAnswer = bestCandidate.first;
+
+						}
+						//case 3: if best and second is same take best
+						else if (best_step == second_best_step)
+						{
+							hasError = false;
+							finalAnswer = bestCandidate.first;
+						}
+						//case 4: if best and second is diff and distance < thresh hasError
+						else if(best_step != second_best_step && secondChoiceKaLang.second - bestCandidate.second < distanceThreshold)
+						{
+							hasError = true;
+							finalAnswer = "unknown";
+						}
+						//case 5: if best and second is diff and distance > thresh take best
+						else if (best_step != second_best_step && secondChoiceKaLang.second - bestCandidate.second >= distanceThreshold)
+						{
+							hasError = false;
+							finalAnswer = bestCandidate.first;
+						}
+						
+						if (!hasError) {
+							vector<string> sep3 = split(finalAnswer, '_');
+							std::cout << "Recognized Step: " + sep3[2] << std::endl;
+							int detectedStep = stoi(sep3[2]);
+							float angle = stof(sep3[3]);
+
+							if (detectedStep == currStep + 1)
+								moveToNextStep = true;
+							else
+								moveToNextStep = false;
+						}
+					
+						currentIteration = 0;
+						myMultiValueMap.clear();
+						bestCandidate.first = "unknown";
+						bestCandidate.second = 1000;
+
+						secondChoiceKaLang.first = "unknown2";
+						secondChoiceKaLang.second = 1001;
+					}
 				}
 
+				//JOHN ALGO STARTS HERE
 /*				std::cout << "fuckme" << std::endl;
 				//searching
 				
@@ -270,10 +460,10 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 					std::cout << "Matched point cloud: " << lowestCandidate << std::endl;
 					cin.get();
 				}*/
-
+				//JOHN ALGO ENDS HERE
 
 				//visualize top cloud
-				std::string viewmodel;
+				/*std::string viewmodel;
 				switch (selectedModel) {
 					case 1: viewmodel = snowcat; break;
 					case 2: viewmodel = pyramid; break;
@@ -282,58 +472,33 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 					case 5: viewmodel = heart; break;
 				}
 
-				helper.readPCD("templates/" + viewmodel + "/" + compModels.at(k_indices[0][0]).first.c_str(), visual);
-				viewer->updatePointCloud(visual, "virtual");
-
-				int ctr = 0;
-				std::string filenamefirst = compModels.at(k_indices[0][0]).first.c_str();
-				/*unsigned first = filenamefirst.find("step_");
-				unsigned last = filenamefirst.find_last_of("_");
-				string stepstring = filenamefirst.substr(first, last - first);
-				int stepOfFirst = stoi(stepstring);*/
-				for (int i = 0; i < k; i++) {
-					std::string name = compModels.at(k_indices[0][i]).first.c_str();
-					if (name.find("step_" + (currStep + 1)) != std::string::npos)
-						ctr++;
-				}
-
-				if (k_distances[0][0] < 40 && ctr >= k/2+1 && filenamefirst.find("step_" + (currStep + 1)) != std::string::npos) {
-					moveToNextStep = true;
-					pcl::console::print_highlight("Updated accepted!!!");
-				}
-				if (k_distances[0][0] > 55) {
-					hasError = true;
-					pcl::console::print_error("There is an error doe!!!");
-				}
-				else {
-					hasError = false;
-				}
-
-				//string
-				//compModels.at(k_indices[0][i]).first.c_str()
-
-				//distance
-				//k_distances[0][i]
+				helper.readPCD("templates/" + viewmodel + "/" + bestCandidate.first, visual);
+				viewer->updatePointCloud(visual, "virtual");*/
 			}
-/*
+
 			if (hasError) {
+				//std::cout << "ERROR OH SHI" << std::endl;
 				sqlCon.updateHasError(connection, 1);
 			}
 			else {
+				//std::cout << "NO ERROR" << std::endl;
 				sqlCon.updateHasError(connection, 0);
 			}
 
 			//accept step 
 			if (moveToNextStep) {
 				currStep++;
-				sqlCon.updateNextStep(connection, currStep + 1);
+				//std::cout << "UPDATE IS HERE" << std::endl;
+				sqlCon.updateNextStep(connection, currStep);
+				moveToNextStep = false;
 				hasUpdate = true;
-			}*/
+			}
 
 		}
 		else {
 			//assembly is finished
-			sqlCon.updateModelSelected(connection, 0);
+			selectedModel = 0;
+			sqlCon.updateModelSelected(connection, selectedModel);
 		}
 		
 	}
