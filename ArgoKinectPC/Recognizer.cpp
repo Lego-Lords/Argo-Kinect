@@ -25,15 +25,25 @@
 #include <flann/flann.h>
 //#include <flann/io/hdf5.h>
 
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <ctime>
+#include <math.h>
+
 
 
 Recognizer::Recognizer() {
 	//connection = sqlCon.setUpConnection("localhost", "root", "", "argo_db");
-	connection = sqlCon.setUpConnection("192.168.43.221", "jolo", "p@ssword", "argo");
+	cyclesTaken = 0;
+	updateduration = 0;
+	totalduration = 0;
+
+	
 
 	selectedModel = 0;
 	maxSteps = 6;
-	currStep = 4;
+	currStep = 0;
 	hasUpdate = true;
 	trackingActive = false;
 	useEstimate = false;
@@ -46,19 +56,29 @@ Recognizer::Recognizer() {
 	currAcceptedCandidateIndex = 0;
 
 	//used by Kingston
-	acceptanceThreshold = 45;
+	acceptanceThreshold = 55;
 	numOfIteration = 30;
 	currentIteration = 0;
 	std::map<std::string, std::pair<float, int> > myMultiValueMap;
-	leastAverage = 1000;
+
 	finalAnswer = "unknown";
 	distanceThreshold = 5;
+	minOccurPercent = 0.75;
+	sizeSmallClouds = 500;
+	minOccurPercentForSmall = 0.5;
 
 	bestCandidate.first = "unknown";
 	bestCandidate.second = 1000;
 
 	secondChoiceKaLang.first = "unknown2";
 	secondChoiceKaLang.second = 1001;
+
+	//LOAD FROM CONFIG.TXT
+	initValuesFromFile();
+
+	connection = sqlCon.setUpConnection(&db_add[0u], &db_user[0u], &db_pass[0u], &db_name[0u]);
+
+	initResultsFile = false;
 
 	input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
@@ -104,6 +124,9 @@ Recognizer::Recognizer() {
 
 
 Recognizer::~Recognizer() {
+	if (useLogs) {
+		resultsFile.close();
+	}
 }
 
 void Recognizer::init()
@@ -145,19 +168,57 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 	if (selectedModel == 0) {
 		//get selection from database
 		std::cout << "Waiting for model to be selected......" << std::endl;
-		selectedModel = sqlCon.getCurrentStep(connection);
+		selectedModel = sqlCon.getSelectedModel(connection);
 		maxSteps = sqlCon.getMaxStep(connection);
-		currStep = 0;
+		currStep = sqlCon.getCurrentStep(connection);
 	}
 	else {
+		if (!initResultsFile && useLogs) {
+			std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
+			std::time_t start_time = std::chrono::system_clock::to_time_t(start);
+			string modellogname;
+			switch (selectedModel) {
+				case 1: modellogname = snowcat; break;
+				case 2: modellogname = pyramid; break;
+				case 3: modellogname = quacktro; break;
+				case 4: modellogname = jay; break;
+				case 5: modellogname = heart; break;
+			}
+			resultsfilename = "results/" + typeOfTest + "_" + modellogname + "_AT:" + std::to_string(acceptanceThreshold) + "_MO:" + std::to_string(minOccurPercent) + "_NI:" + std::to_string(numOfIteration) + "_NC:" + std::to_string(numOfCandidates) + ".csv";
+			resultsfilename.erase(std::remove(resultsfilename.begin(), resultsfilename.end(), '\n'), resultsfilename.end());
+			std::replace(resultsfilename.begin(), resultsfilename.end(), ':', '_');
+			std::replace(resultsfilename.begin(), resultsfilename.end(), ' ', '_');
+			resultsFile.open(resultsfilename, std::ios_base::app);
+			//add header
+			//resultsFile << "Step,Time,Cycles,Best Candidate, Ave. Distance, 2nd Candidate, Ave. Distance, Points" << std::endl;;
+			std::cout << resultsfilename << std::endl;
+			resultsFile.flush();
+			initResultsFile = true;
+		}
 		if (currStep < maxSteps) {
-			init();
 			if (hasUpdate) {
+				if (isStepByStep) {
+					string inputthis;
+					cin >> inputthis;
+				}
+				
+				//std::cout << "Loading needed files for model......" << maxSteps << std::endl;
 				loadHistogramsFromFiles();
 				hasUpdate = false;
 				hasError = false;
 			}
-			if (scene->size() > 0) {
+			else if (scene->size() > 0) {
+				//lower thresholds for smaller clouds
+				if (currStep < 2 && scene->size() < sizeSmallClouds) {
+					minOccurPercent = minOccurPercentForSmall;
+					
+					//acceptanceThreshold = 55;
+					//numOfIteration = 30;
+				}
+				else {
+					minOccurPercent = 0.75;
+				}
+
 				*input = *scene;
 				//viewer->spinOnce();
 				pcl::PointCloud<pcl::VFHSignature308>::Ptr sceneVFH(new pcl::PointCloud<pcl::VFHSignature308>());
@@ -168,7 +229,6 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 
 				vfh_model sceneHist;
 				sceneHist.second.resize(308);
-
 				std::vector <pcl::PCLPointField> fields;
 				getFieldIndex(*sceneVFH, "vfh", fields);
 				for (size_t i = 0; i < fields[0].count; ++i) {
@@ -178,21 +238,19 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 
 				flann::Matrix<int> k_indices;
 				flann::Matrix<float> k_distances;
-				//flann::Matrix<float> data;
-
-				//flann::load_from_file(data, models_hd5_filename, "training_data");
-				//pcl::console::print_highlight("Training data found. Loaded %d VFH models from %s\n",
-					//(int)data.rows, models_hd5_filename.c_str());
 				int k = numOfCandidates;
 				flann::Index<flann::ChiSquareDistance<float> > index(data, flann::SavedIndexParams(kdtree_filename));
 				index.buildIndex();
 				nearestKSearch(index, sceneHist, k, k_indices, k_distances);
 
-				/*pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
-				for (int i = 0; i < k; ++i) {
-					pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
-						i, compModels.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
-				}*/
+				if (showIterVals) {
+					pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
+					for (int i = 0; i < k; ++i) {
+						pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
+							i, compModels.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
+					}
+				}
+				
 
 				//string
 				//compModels.at(k_indices[0][i]).first.c_str()
@@ -205,6 +263,9 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 
 
 				//myMultiValueMap.clear();
+
+				if (currentIteration == 0)
+					start = std::clock();
 
 				if (currentIteration < numOfIteration)
 				{
@@ -244,9 +305,9 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 							//std::cout << myMultiValueMap[iter->first].first << std::endl;
 							//Must be at least 50%
 							//std::cout << "curr " + currentIteration << std::endl;
-							if (myMultiValueMap[iter->first].second >= .75*numOfIteration)
+							if (myMultiValueMap[iter->first].second >= minOccurPercent*numOfIteration)
 							{
-								std::cout << "\hallogoodoccur" << std::endl;
+								//std::cout << "\hallogoodoccur" << std::endl;
 								float currentAverage = myMultiValueMap[iter->first].first / myMultiValueMap[iter->first].second;
 								if (currentAverage < bestCandidate.second)
 								{
@@ -277,12 +338,40 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 								}
 							}
 						}
-						std::cout << "\nBest " + bestCandidate.first << std::endl;
+						cyclesTaken++;
+						duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
+						updateduration += duration;
+
+						
+						std::cout << "Cycle: " << cyclesTaken << std::endl;
+						std::cout << "Duration of Cycle: " << duration << std::endl;
+						std::cout << "\nBest: " + bestCandidate.first << std::endl;
 						printf(" computed: %.4f \n", bestCandidate.second);
 
-						std::cout << "\n2nd choice lang " + secondChoiceKaLang.first << std::endl;
-						printf(" computed: %.4f \n", secondChoiceKaLang.second);
+						std::cout << "\n2nd choice lang: " + secondChoiceKaLang.first << std::endl;
+						printf(" computed: %.4f \n\n", secondChoiceKaLang.second);
 
+						if (useLogs) {
+							if (bestCandidate.first == "unknown") {
+								savedBestCandidate.first = "-";
+								savedBestCandidate.second = "-";
+							}
+							else {
+								savedBestCandidate.first = bestCandidate.first;
+								savedBestCandidate.second = std::to_string(round4f(bestCandidate.second));
+							}
+							
+							if (secondChoiceKaLang.first == "unknown" || secondChoiceKaLang.first == "unknown2") {
+								saved2ndCandidate.first = "-";
+								saved2ndCandidate.second = "-";
+							}
+							else {
+								saved2ndCandidate.first = secondChoiceKaLang.first;
+								saved2ndCandidate.second = std::to_string(round4f(secondChoiceKaLang.second));
+							}
+							
+						}
+						
 						//string delimiter = "_";
 
 						//string best_step = bestCandidate.first.substr(2, bestCandidate.first.find(delimiter));
@@ -489,6 +578,26 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 			//accept step 
 			if (moveToNextStep) {
 				currStep++;
+				pcl::console::print_highlight("Cycles Taken to Update: %d \n", cyclesTaken);
+				std::cout << "Number of points: " << scene->size() << std::endl;
+				pcl::console::print_warn("Time taken: %.4f \n", updateduration);
+
+				if (useLogs) {
+					resultsFile << currStep << "," << round4d(updateduration) << "," << cyclesTaken << "," << savedBestCandidate.first << "," << savedBestCandidate.second << "," << saved2ndCandidate.first << "," << saved2ndCandidate.second << "," << scene->size() << std::endl;;
+					resultsFile.flush();
+					//stepnum
+					//timetorecog
+					//best angle
+					//best distance
+					//second angle
+					//second best distance
+					//num points
+					//num cycles
+				}
+
+				updateduration = 0;
+				cyclesTaken = 0;
+				
 				//std::cout << "UPDATE IS HERE" << std::endl;
 				sqlCon.updateNextStep(connection, currStep);
 				moveToNextStep = false;
@@ -498,8 +607,18 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 		}
 		else {
 			//assembly is finished
+			pcl::console::print_value("Assembly has completed! Resetting values....");
+			if (useLogs) {
+				resultsFile.close();
+				initResultsFile = false;
+			}
+			Sleep(3000);
+			currStepModels.clear();
+			nextStepModels.clear();
+			currStep = 0;
 			selectedModel = 0;
-			sqlCon.updateModelSelected(connection, selectedModel);
+			sqlCon.updateNextStep(connection, 0);
+			sqlCon.updateModelSelected(connection, 0);
 		}
 		
 	}
@@ -553,13 +672,13 @@ void Recognizer::loadHistogramsFromFiles() {
 		currStepModels.swap(nextStepModels);
 	else if (currStep != 0) {
 		currStepModels.clear();
-		stepfile = "step_" + std::to_string(currStep);
+		stepfile = "step_" + std::to_string(currStep) + "_";
 		loadVFHs(model_dir, ".pcd", stepfile, currStepModels);
 	}
 
 	//loadVFHs of next step
 	nextStepModels.clear();
-	stepfile = "step_" + std::to_string(currStep + 1);
+	stepfile = "step_" + std::to_string(currStep + 1) + "_";
 	loadVFHs(model_dir, ".pcd", stepfile, nextStepModels);
 
 	//combine models of next step and current step
@@ -919,4 +1038,46 @@ void Recognizer::lowerVisibleArea(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  cloud
 	pass.setFilterFieldName(axis);
 	pass.setFilterLimits(min, max);
 	pass.filter(*cloud);
+}
+
+void Recognizer::initValuesFromFile() {
+	ifstream in("config.txt");
+	string line;
+	std::map<std::string, std::string> keyvalueMap;
+	while (getline(in, line)) {
+		//do something with the line
+		if (line.at(0) != '#') {
+			vector<string> vectorLine = split(line, '=');
+			keyvalueMap[vectorLine[0]] = vectorLine[1];
+		}
+	}
+
+	acceptanceThreshold = stof(keyvalueMap["acceptanceThreshold"]);
+	numOfIteration = stoi(keyvalueMap["numOfIteration"]);
+	minOccurPercent = stof(keyvalueMap["minOccurPercent"]);
+	minOccurPercentForSmall = stof(keyvalueMap["minOccurPercentForSmall"]);
+	lowerThreshForSmall = stof(keyvalueMap["lowerThreshForSmall"]);
+	numOfCandidates = stoi(keyvalueMap["numOfCandidates"]);
+	distanceThreshold = stof(keyvalueMap["distanceThreshold"]);
+	sizeSmallClouds = stoi(keyvalueMap["numOfCandidates"]);
+	isStepByStep = stoi(keyvalueMap["isStepByStep"]);
+	useLogs = stoi(keyvalueMap["useLogs"]);
+	typeOfTest = keyvalueMap["typeOfTest"];
+
+	db_add = keyvalueMap["db_add"];
+	db_user = keyvalueMap["db_user"];
+	db_pass = keyvalueMap["db_pass"];
+	db_name = keyvalueMap["db_name"];
+
+	showIterVals = stoi(keyvalueMap["showIterVals"]);
+
+	pcl::console::print_highlight("Loaded values from text file!\n");
+}
+
+float Recognizer::round4f(float f) {
+	return roundf(f * 10000) / 10000;
+}
+
+double Recognizer::round4d(double d) {
+	return round(d * 10000) / 10000;
 }

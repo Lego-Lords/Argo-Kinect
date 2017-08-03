@@ -1,0 +1,16 @@
+db_add=192.168.43.221
+db_user=jolo
+db_pass=p@ssword
+db_name=argo
+acceptanceThreshold=45
+minOccurPercent=0.75
+numOfIteration=30
+lowerThreshForSmall=0
+minOccurPercentForSmall=0.5
+numOfCandidates=10
+distanceThreshold=5
+sizeSmallClouds=500
+isStepByStep=1
+typeOfTest=diffmodels
+useLogs=1
+showIterVals=1

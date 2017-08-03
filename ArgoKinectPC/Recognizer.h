@@ -99,16 +99,47 @@ private:
 	string lowestCandidate;
 
 	//used by Kingston
-	int acceptanceThreshold;
+	float acceptanceThreshold;
 	int numOfIteration;
 	int currentIteration;
 	std::map<std::string, std::pair<float, int> > myMultiValueMap;
 	float leastAverage;
 	string finalAnswer;
 	float distanceThreshold;
+	float minOccurPercent;
+
+	int lowerThreshForSmall;
+	float minOccurPercentForSmall;
+	int sizeSmallClouds;
+	
+
+	int isStepByStep;
+	string typeOfTest;
+
+	int useLogs;
+	ofstream resultsFile;
+	string resultsfilename;
+
+	bool initResultsFile;
+
+	int cyclesTaken;
+	std::clock_t start;
+	double duration;
+	double updateduration;
+	double totalduration;
+
+	int showIterVals;
+
+	string db_add;
+	string db_user;
+	string db_pass;
+	string db_name;
 
 	std::pair<string, float> bestCandidate;
 	std::pair<string, float> secondChoiceKaLang;
+
+	std::pair<string, string> savedBestCandidate;
+	std::pair<string, string> saved2ndCandidate;
 
 
 public:
@@ -138,6 +169,9 @@ public:
 	void nearestKSearch(flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
 		int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances);
 	vector<string> split(string str, char delimiter);
+	void initValuesFromFile();
+	float round4f(float f);
+	double round4d(double d);
 };
 
 #endif

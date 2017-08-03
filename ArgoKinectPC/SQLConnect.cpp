@@ -114,13 +114,13 @@ MYSQL_RES* SQLConnect::mysql_perform_query(MYSQL *connection, char *sql_query) {
 	return mysql_use_result(connection);
 }
 
-void SQLConnect::updateModelSelected(MYSQL * connection, int modelSelected) {
+void SQLConnect::updateModelSelected(MYSQL * connection, int isSelected) {
 	//UPDATE `argo`.`argo_app_steps` SET `currentStep`='5' WHERE `id`='1';
 	MYSQL_RES *res;	// the results
 	MYSQL_ROW row;	// the results row (line by line)
 
 	std::ostringstream buf;
-	buf << "UPDATE `argo`.`argo_app_steps` SET `modelSelected`= '" << modelSelected << "'" << " WHERE id = '" << modelSelected << "'";
+	buf << "UPDATE `argo`.`argo_app_steps` SET `modelSelected`= '" << isSelected << "'" << " WHERE id = '" << modelSelected << "'";
 
 	string str = buf.str();
 

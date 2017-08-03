@@ -235,7 +235,7 @@ inline void Kinect::initializePointCloud() {
 	viewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
 
 	// Add Coordinate System
-	viewer->addCoordinateSystem(0.1);
+	//viewer->addCoordinateSystem(0.1);
 	viewer->addPointCloud(cloud, "cloud");
 }
 

@@ -10,7 +10,7 @@ Trainer::Trainer() {
 	extension = ".pcd";
 	save_dir = "features/";
 	file_dir = "templates/";
-	model_name = "duck/";
+	model_name = "heart/";
 }
 
 
