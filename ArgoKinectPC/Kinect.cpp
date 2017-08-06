@@ -337,7 +337,8 @@ void Kinect::draw() {
 
 // Draw Point Cloud
 inline void Kinect::drawPointCloud() {
-	if (!viewer->updatePointCloud(pOutput, "cloud")) {
+
+	if (!viewer->updatePointCloud(pOutput, "cloud")/*!viewer->updatePointCloud(pOutput, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(pOutput, 255.0, 255.0, 255.0), "cloud")*/) {
 		viewer->addPointCloud(pOutput, "cloud");
 	}
 }

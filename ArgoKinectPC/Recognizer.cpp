@@ -76,7 +76,11 @@ Recognizer::Recognizer() {
 	//LOAD FROM CONFIG.TXT
 	initValuesFromFile();
 
-	connection = sqlCon.setUpConnection(&db_add[0u], &db_user[0u], &db_pass[0u], &db_name[0u]);
+	if (useServer) {
+		connection = sqlCon.setUpConnection(&db_add[0u], &db_user[0u], &db_pass[0u], &db_name[0u]);
+		selectedModel = 0;
+	}
+		
 
 	initResultsFile = false;
 
@@ -112,13 +116,15 @@ Recognizer::Recognizer() {
 	// Visualization
 	this->viewer = boost::make_shared<pcl::visualization::PCLVisualizer>("ICP Viewer");
 	this->viewer->setCameraPosition(0.0, 0.0, -1.0, 0.0, 0.0, 0.0);
-	this->viewer->addCoordinateSystem(0.1);
+	//this->viewer->addCoordinateSystem(0.1);
 
-	//this->viewer->addPointCloud(visual, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(visual, 0.0, 0.0, 255.0), "virtual");
+	//t
 	//getCloudToCompare(nextStepModel);
 	//centerCloud(nextStepModel);
-	this->viewer->addPointCloud(visual, "virtual");
 	//this->viewer->addPointCloud(nextStepModel, "try");
+	//this->viewer->addPointCloud(nextStepModel, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA>(nextStepModel, 255.0, 255.0, 255.0), "try");
+
+	this->viewer->addPointCloud(visual, "virtual");
 	//this->viewer->spinOnce();
 }
 
@@ -167,10 +173,19 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 	//if no model is selected, wait for selection
 	if (selectedModel == 0) {
 		//get selection from database
-		std::cout << "Waiting for model to be selected......" << std::endl;
-		selectedModel = sqlCon.getSelectedModel(connection);
-		maxSteps = sqlCon.getMaxStep(connection);
-		currStep = sqlCon.getCurrentStep(connection);
+		if (useServer) {
+			std::cout << "Waiting for model to be selected......" << std::endl;
+			selectedModel = sqlCon.getSelectedModel(connection);
+			maxSteps = sqlCon.getMaxStep(connection);
+			currStep = sqlCon.getCurrentStep(connection);
+		}
+		
+
+		//viewer->addPointCloud(scenePointNormal, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(scenePointNormal, 0.0, 255.0, 0.0), "scene");
+		
+		//viewer->updatePointCloud(scene, "virtual");
+		//viewer->spinOnce();
+		//viewer->addPointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");		
 	}
 	else {
 		if (!initResultsFile && useLogs) {
@@ -199,31 +214,35 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 			if (hasUpdate) {
 				if (isStepByStep) {
 					string inputthis;
+					std::cout << "Input any string to continue. " << std::endl;
 					cin >> inputthis;
 				}
 				
 				//std::cout << "Loading needed files for model......" << maxSteps << std::endl;
+				aveSizeOfNext = computeAveOfStep(currStep + 1);
+				std::cout << "Average size of next: " << aveSizeOfNext << std::endl;
 				loadHistogramsFromFiles();
 				hasUpdate = false;
 				hasError = false;
 			}
-			else if (scene->size() > 0) {
+			else if (scene->size() > 1) {
 				//lower thresholds for smaller clouds
-				if (currStep < 2 && scene->size() < sizeSmallClouds) {
+				if (lowerThreshForSmall && aveSizeOfNext < sizeSmallClouds) {
 					minOccurPercent = minOccurPercentForSmall;
 					
-					//acceptanceThreshold = 55;
+					acceptanceThreshold = threshForSmall;
 					//numOfIteration = 30;
 				}
-				else {
-					minOccurPercent = 0.75;
-				}
+				//else {
+					//minOccurPercent = 0.75;
+				//}
 
 				*input = *scene;
 				//viewer->spinOnce();
 				pcl::PointCloud<pcl::VFHSignature308>::Ptr sceneVFH(new pcl::PointCloud<pcl::VFHSignature308>());
 
-				//std::cout << "Input cloud: " << input->size() << std::endl;
+				if(showSceneSize)
+					std::cout << "Input cloud: " << input->size() << std::endl;
 				//std::cout << "Computing scene vfh... " << std::endl;
 				computeVFHFeatures(input, sceneVFH);
 
@@ -291,7 +310,7 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 								myMultiValueMap[compModels.at(k_indices[0][i]).first.c_str()].second++;
 							}
 						
-						}
+						//}
 					}
 					if (currentIteration < numOfIteration)
 						currentIteration++;
@@ -566,11 +585,11 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				viewer->updatePointCloud(visual, "virtual");*/
 			}
 
-			if (hasError) {
+			if (hasError && useServer) {
 				//std::cout << "ERROR OH SHI" << std::endl;
 				sqlCon.updateHasError(connection, 1);
 			}
-			else {
+			else if (useServer) {
 				//std::cout << "NO ERROR" << std::endl;
 				sqlCon.updateHasError(connection, 0);
 			}
@@ -599,7 +618,8 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				cyclesTaken = 0;
 				
 				//std::cout << "UPDATE IS HERE" << std::endl;
-				sqlCon.updateNextStep(connection, currStep);
+				if (useServer)
+					sqlCon.updateNextStep(connection, currStep);
 				moveToNextStep = false;
 				hasUpdate = true;
 			}
@@ -617,8 +637,10 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 			nextStepModels.clear();
 			currStep = 0;
 			selectedModel = 0;
-			sqlCon.updateNextStep(connection, 0);
-			sqlCon.updateModelSelected(connection, 0);
+			if (useServer) {
+				sqlCon.updateNextStep(connection, 0);
+				sqlCon.updateModelSelected(connection, 0);
+			}
 		}
 		
 	}
@@ -709,7 +731,6 @@ void Recognizer::loadHistogramsFromFiles() {
 	//delete[] data.ptr();
 }
 
-//TODO LAGAY SA .H
 inline void Recognizer::nearestKSearch(flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
 	int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances) {
 	// Query point
@@ -720,6 +741,31 @@ inline void Recognizer::nearestKSearch(flann::Index<flann::ChiSquareDistance<flo
 	distances = flann::Matrix<float>(new float[k], 1, k);
 	index.knnSearch(p, indices, distances, k, flann::SearchParams(512));
 	delete[] p.ptr();
+}
+
+float Recognizer::computeAveOfStep(int step) {
+	std::string model_dir = "templates/";
+	std::string stepfile;
+	float sum = 0.0;
+	int count = 0;
+	switch (selectedModel) {
+		case 1: model_dir += snowcat; break;
+		case 2: model_dir += pyramid; break;
+		case 3: model_dir += quacktro; break;
+		case 4: model_dir += jay; break;
+		case 5: model_dir += heart; break;
+	}
+
+	stepfile = "step_" + std::to_string(currStep+1) + "_";
+	for (boost::filesystem::directory_iterator it(model_dir); it != boost::filesystem::directory_iterator(); ++it) {
+		if (boost::filesystem::is_regular_file(it->status()) && boost::filesystem::extension(it->path()) == ".pcd"  && it->path().filename().string().find(stepfile) != std::string::npos) {
+			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+			helper.readPCD(it->path().string(), cloud);
+			sum += cloud->size();
+			count++;
+		}
+	}
+	return sum / count;
 }
 
 void Recognizer::loadVFHs(const boost::filesystem::path &file_dir, std::string extension, std::string stepfile, std::vector<vfh_model> &models) {
@@ -807,7 +853,9 @@ void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved
 		case 4: stepfile = jay; break;
 		case 5: stepfile = heart; break;
 	}
-	helper.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", saved);
+	
+	//helper.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", saved);
+	helper.readPCD("templates/duck/duck_step_1_0.pcd", saved);
 	std::cout << "Obtained cloud " << saved->size() << std::endl;
 	centerCloud(saved);
 }
@@ -1052,14 +1100,23 @@ void Recognizer::initValuesFromFile() {
 		}
 	}
 
+	useServer = stoi(keyvalueMap["useServer"]);
+
+	if (!useServer) {
+		selectedModel = stoi(keyvalueMap["selectedModel"]);
+		maxSteps = stoi(keyvalueMap["maxSteps"]);
+	}
+
+	currStep = stoi(keyvalueMap["currStep"]);
 	acceptanceThreshold = stof(keyvalueMap["acceptanceThreshold"]);
 	numOfIteration = stoi(keyvalueMap["numOfIteration"]);
 	minOccurPercent = stof(keyvalueMap["minOccurPercent"]);
 	minOccurPercentForSmall = stof(keyvalueMap["minOccurPercentForSmall"]);
-	lowerThreshForSmall = stof(keyvalueMap["lowerThreshForSmall"]);
+	lowerThreshForSmall = stoi(keyvalueMap["lowerThreshForSmall"]);
+	threshForSmall = stof(keyvalueMap["threshForSmall"]);
 	numOfCandidates = stoi(keyvalueMap["numOfCandidates"]);
 	distanceThreshold = stof(keyvalueMap["distanceThreshold"]);
-	sizeSmallClouds = stoi(keyvalueMap["numOfCandidates"]);
+	sizeSmallClouds = stoi(keyvalueMap["sizeSmallClouds"]);
 	isStepByStep = stoi(keyvalueMap["isStepByStep"]);
 	useLogs = stoi(keyvalueMap["useLogs"]);
 	typeOfTest = keyvalueMap["typeOfTest"];
@@ -1070,7 +1127,7 @@ void Recognizer::initValuesFromFile() {
 	db_name = keyvalueMap["db_name"];
 
 	showIterVals = stoi(keyvalueMap["showIterVals"]);
-
+	showSceneSize = stoi(keyvalueMap["showSceneSize"]);
 	pcl::console::print_highlight("Loaded values from text file!\n");
 }
 

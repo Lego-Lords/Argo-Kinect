@@ -109,6 +109,7 @@ private:
 	float minOccurPercent;
 
 	int lowerThreshForSmall;
+	float threshForSmall;
 	float minOccurPercentForSmall;
 	int sizeSmallClouds;
 	
@@ -129,6 +130,9 @@ private:
 	double totalduration;
 
 	int showIterVals;
+	int showSceneSize;
+	int useServer;
+	float aveSizeOfNext;
 
 	string db_add;
 	string db_user;
@@ -172,6 +176,7 @@ public:
 	void initValuesFromFile();
 	float round4f(float f);
 	double round4d(double d);
+	float computeAveOfStep(int step);
 };
 
 #endif

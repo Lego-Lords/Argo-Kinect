@@ -323,7 +323,8 @@ void Segmenter::filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filter
 	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("b", pcl::ComparisonOps::GT, bMin)));
 
 	// build the filter 
-	pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem(color_cond);
+	pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem;
+	condrem.setCondition(color_cond);
 	condrem.setInputCloud(input_noA);
 
 	// apply filter 
