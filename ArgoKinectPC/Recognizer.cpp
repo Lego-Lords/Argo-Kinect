@@ -23,6 +23,9 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/features/vfh.h>
 #include <flann/flann.h>
+#include <pcl/filters/conditional_removal.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/region_growing_rgb.h>
 //#include <flann/io/hdf5.h>
 
 #include <iostream>
@@ -83,6 +86,7 @@ Recognizer::Recognizer() {
 		
 
 	initResultsFile = false;
+	initAssembly = false;
 
 	input = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	cloudAgainst = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
@@ -188,18 +192,20 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 		//viewer->addPointCloud(aligned, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>(aligned, 0.0, 0.0, 255.0), "object_aligned");		
 	}
 	else {
+		if (!initAssembly) {
+			switch (selectedModel) {
+				case 1: selectmodelname = snowcat; break;
+				case 2: selectmodelname = pyramid; break;
+				case 3: selectmodelname = quacktro; break;
+				case 4: selectmodelname = jay; break;
+				case 5: selectmodelname = heart; break;
+			}
+		}
 		if (!initResultsFile && useLogs) {
 			std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
 			std::time_t start_time = std::chrono::system_clock::to_time_t(start);
-			string modellogname;
-			switch (selectedModel) {
-				case 1: modellogname = snowcat; break;
-				case 2: modellogname = pyramid; break;
-				case 3: modellogname = quacktro; break;
-				case 4: modellogname = jay; break;
-				case 5: modellogname = heart; break;
-			}
-			resultsfilename = "results/" + typeOfTest + "_" + modellogname + "_AT:" + std::to_string(acceptanceThreshold) + "_MO:" + std::to_string(minOccurPercent) + "_NI:" + std::to_string(numOfIteration) + "_NC:" + std::to_string(numOfCandidates) + ".csv";
+			
+			resultsfilename = "results/" + typeOfTest + "_" + selectmodelname + "_AT:" + std::to_string(acceptanceThreshold) + "_MO:" + std::to_string(minOccurPercent) + "_NI:" + std::to_string(numOfIteration) + "_NC:" + std::to_string(numOfCandidates) + ".csv";
 			resultsfilename.erase(std::remove(resultsfilename.begin(), resultsfilename.end(), '\n'), resultsfilename.end());
 			std::replace(resultsfilename.begin(), resultsfilename.end(), ':', '_');
 			std::replace(resultsfilename.begin(), resultsfilename.end(), ' ', '_');
@@ -233,6 +239,9 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 					acceptanceThreshold = threshForSmall;
 					//numOfIteration = 30;
 				}
+				else {
+					acceptanceThreshold = threshForNormal;
+				}
 				//else {
 					//minOccurPercent = 0.75;
 				//}
@@ -253,11 +262,24 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				for (size_t i = 0; i < fields[0].count; ++i) {
 					sceneHist.second[i] = sceneVFH->points[0].histogram[i];
 				}
+				/*std::vector<float> hist;
+				hist.resize(100);
+				createColorHistogram(input, hist);
+				for (size_t i = 0; i < 100; i++) {
+					sceneHist.second[308 + i] = hist[i];
+				}*/
 				sceneHist.first = "scene_histogram";
 
 				flann::Matrix<int> k_indices;
 				flann::Matrix<float> k_distances;
-				int k = numOfCandidates;
+				int k;
+				//k = numOfCandidates;
+				if (currStep == 0) {
+					k = 18;
+				}
+				else
+					k = 36;
+				
 				flann::Index<flann::ChiSquareDistance<float> > index(data, flann::SavedIndexParams(kdtree_filename));
 				index.buildIndex();
 				nearestKSearch(index, sceneHist, k, k_indices, k_distances);
@@ -291,8 +313,8 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 					
 					for (int i = 0; i < k; i++) 
 					{
-						if (k_distances[0][i] < acceptanceThreshold)
-						{
+						//if (k_distances[0][i] < acceptanceThreshold)
+						//{
 
 							/*candidateMatches[candidateMatchesIndex] = k_indices[0][i];
 							candidateMatchesIndex++;*/
@@ -324,37 +346,38 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 							//std::cout << myMultiValueMap[iter->first].first << std::endl;
 							//Must be at least 50%
 							//std::cout << "curr " + currentIteration << std::endl;
-							if (myMultiValueMap[iter->first].second >= minOccurPercent*numOfIteration)
-							{
+							//if (myMultiValueMap[iter->first].second >= minOccurPercent*numOfIteration)
+							//{
 								//std::cout << "\hallogoodoccur" << std::endl;
-								float currentAverage = myMultiValueMap[iter->first].first / myMultiValueMap[iter->first].second;
-								if (currentAverage < bestCandidate.second)
-								{
-									secondChoiceKaLang.second = bestCandidate.second;
-									secondChoiceKaLang.first = bestCandidate.first;
+							
+							float currentAverage = myMultiValueMap[iter->first].first / myMultiValueMap[iter->first].second;
+							std::cout << "Step: " << iter->first << " Ave: " << currentAverage << std::endl;
+							if (currentAverage < bestCandidate.second)
+							{
+								secondChoiceKaLang.second = bestCandidate.second;
+								secondChoiceKaLang.first = bestCandidate.first;
 
-									bestCandidate.second = currentAverage;
-									bestCandidate.first = iter->first;
-								}
-
+								bestCandidate.second = currentAverage;
+								bestCandidate.first = iter->first;
 							}
+							//}
+						}
 
-							//did not find second best
-							if (secondChoiceKaLang.first == "unknown") {
-								//look for second best
-								for (std::map<std::string, std::pair<float, int>>::iterator iter = myMultiValueMap.begin(); iter != myMultiValueMap.end(); ++iter)
+						//did not find second best
+						if (secondChoiceKaLang.first == "unknown") {
+							//look for second best
+							for (std::map<std::string, std::pair<float, int>>::iterator iter = myMultiValueMap.begin(); iter != myMultiValueMap.end(); ++iter)
+							{
+								//if (myMultiValueMap[iter->first].second >= minOccurPercent*numOfIteration)
+								//{
+								float currentAverage = myMultiValueMap[iter->first].first / myMultiValueMap[iter->first].second;
+								if (currentAverage < secondChoiceKaLang.second && currentAverage != bestCandidate.second)
 								{
-									if (myMultiValueMap[iter->first].second >= .75*numOfIteration)
-									{
-										float currentAverage = myMultiValueMap[iter->first].first / myMultiValueMap[iter->first].second;
-										if (currentAverage < secondChoiceKaLang.second && currentAverage != bestCandidate.second)
-										{
-											secondChoiceKaLang.second = currentAverage;
-											secondChoiceKaLang.first = iter->first;
-										}
-
-									}
+									secondChoiceKaLang.second = currentAverage;
+									secondChoiceKaLang.first = iter->first;
 								}
+
+								//}
 							}
 						}
 						cyclesTaken++;
@@ -443,13 +466,35 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 						}
 						
 						if (!hasError) {
+							pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+							helper.readPCD("templates/" + selectmodelname + "/" + finalAnswer /*+ ".pcd"*/, cloud);
+
 							vector<string> sep3 = split(finalAnswer, '_');
 							std::cout << "Recognized Step: " + sep3[2] << std::endl;
 							int detectedStep = stoi(sep3[2]);
 							float angle = stof(sep3[3]);
 
-							if (detectedStep == currStep + 1)
-								moveToNextStep = true;
+							//rotate around y axis by that angle
+
+							int numBricksScene = isolateBricks(input);
+							std::cout << "Num Bricks Scene: " << numBricksScene << std::endl;
+
+							if (detectedStep == currStep + 1 && bestCandidate.second < acceptanceThreshold) {
+								pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+								helper.readPCD("templates/" + selectmodelname + "/" + finalAnswer /*+ ".pcd"*/, cloud);
+								
+								int numBricksTemplate = isolateBricks(cloud);
+								
+								std::cout << "Num Bricks Template: " << numBricksTemplate << std::endl;
+								if (cloud->size() > scene->size() - cloud->size()*cloudSizePercent && cloud->size() < scene->size() + cloud->size()*cloudSizePercent)
+								if (numBricksScene == numBricksTemplate)
+									moveToNextStep = true;
+								else {
+									moveToNextStep = false;
+									//std::cout << "Rejected!!!Cloud Wanted: " << numBricksTemplate << " but your scene has: " << numBricksScene  << std::endl;
+								}
+									
+							}		
 							else
 								moveToNextStep = false;
 						}
@@ -463,113 +508,6 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 						secondChoiceKaLang.second = 1001;
 					}
 				}
-
-				//JOHN ALGO STARTS HERE
-/*				std::cout << "fuckme" << std::endl;
-				//searching
-				
-
-				std::cout << "currIter: " << currIter << std::endl;
-				std::cout << "numOfIter: " << numOfIter << std::endl;
-				numOfIter = 10;
-				if(currIter < numOfIter){
-					std::cout << "fuckme1" << std::endl;
-					//print top 5
-					//pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
-					for (int i = 0; i < numOfCandidates; ++i){
-						std::cout << "fuckme2" << std::endl;
-						// add to acceptedScores based on score threshold
-						if (k_distances[0][i] < acceptedScore) {
-							acceptedCandidates[currAcceptedCandidateIter][currAcceptedCandidateIndex] =
-								compModels.at(k_indices[0][i]).first.c_str();
-							acceptedCandidatesDistance[currAcceptedCandidateIter][currAcceptedCandidateIndex] =
-								k_distances[0][i];
-							currAcceptedCandidateIndex++;
-							hasAddedCandidate = true;
-						}
-						pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
-							i, compModels.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
-					}
-					// prepare for next iteration
-					if (hasAddedCandidate)
-						currAcceptedCandidateIter++;
-					currAcceptedCandidateIndex = 0;
-					currIter++;
-				}
-				else { //end of X iterations
-					//GET LOWEST VALUE
-
-					std::cout << "fuckme3" << std::endl;
-					// POPULATE FREQ
-					for (int i = 0; i < numOfIter; i++) {
-						for (int j = 0; j < numOfIter; j++) {
-							std::cout << "fuckme4" << std::endl;
-							std::string currCandidate = acceptedCandidates[i][j];
-							int currDistance = acceptedCandidatesDistance[i][j];
-							if(acceptedCandidatesFreq.find(currCandidate) != acceptedCandidatesFreq.end()) {
-								std::cout << "fuckme5" << std::endl;
-								//candidate already exists
-								acceptedCandidatesFreq[currCandidate]++;
-								acceptedCandidatesDistanceMap[currCandidate] += currDistance;
-							}
-							else {
-								//initialize candidate freq
-								acceptedCandidatesFreq[currCandidate] = 1;
-								acceptedCandidatesDistanceMap[currCandidate] = currDistance;
-							}
-						}
-					}
-
-					//AVG FREQ
-					int distanceMapIndex = 0;
-					for (std::map<string, unsigned int>::iterator it = acceptedCandidatesDistanceMap.begin(); it != acceptedCandidatesDistanceMap.end(); ++it) {
-						std::cout << "fuckme6" << std::endl;
-						acceptedCandidatesAverageMap[it->first] = it->second / acceptedCandidatesFreq[it->first];
-						distanceMapIndex++;
-					}
-					// GET LOWEST
-					lowestCandidate = "";
-					int lowestCandidateDistance;
-					bool isFirstCandidate = true;
-					// show content:
-					for (std::map<string, float>::iterator it = acceptedCandidatesAverageMap.begin(); it != acceptedCandidatesAverageMap.end(); ++it) {
-						
-						std::cout << "fuckme7" << std::endl;
-						string currCand = it->first;
-						float currFreq = it->second;
-
-						if (isFirstCandidate == true) {
-							std::cout << "fuckme8" << std::endl;
-							std::cout << "key: " << it->first << std::endl;
-							std::cout << "value: " << it->second << std::endl;
-							lowestCandidate = it->first;
-							lowestCandidateDistance = it->second;
-							isFirstCandidate = false;
-						}
-						if (currFreq < lowestCandidateDistance) {
-							std::cout << "fuckme9" << std::endl;
-							lowestCandidate = it->first;
-							lowestCandidateDistance = it->second;
-						}
-					}
-
-					// reinitialize
-					currIter = 0;
-					currAcceptedCandidateIter = 0;
-					currAcceptedCandidateIndex = 0;
-					acceptedCandidates[10][100] = { 0 };
-					acceptedCandidates[10][100] = { "" };
-					acceptedCandidatesDistance[10][100] = { 0 };
-					hasAddedCandidate = false;
-					acceptedCandidatesFreq = map<string, unsigned int>();
-					acceptedCandidatesDistanceMap = map<string, unsigned int>();
-					acceptedCandidatesAverageMap = map<string, float>();
-
-					// show matched cloud
-					std::cout << "Matched point cloud: " << lowestCandidate << std::endl;
-					cin.get();
-				}*/
-				//JOHN ALGO ENDS HERE
 
 				//visualize top cloud
 				/*std::string viewmodel;
@@ -632,6 +570,7 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				resultsFile.close();
 				initResultsFile = false;
 			}
+			initAssembly = false;
 			Sleep(3000);
 			currStepModels.clear();
 			nextStepModels.clear();
@@ -690,18 +629,21 @@ void Recognizer::loadHistogramsFromFiles() {
 	}
 
 	//load VFHs of curr step
-	if (nextStepModels.size() != 0)
+	if (nextStepModels.size() != 0) {
+		std::cout << "no need load new" << std::endl;
 		currStepModels.swap(nextStepModels);
+	}
+		
 	else if (currStep != 0) {
 		currStepModels.clear();
 		stepfile = "step_" + std::to_string(currStep) + "_";
-		loadVFHs(model_dir, ".pcd", stepfile, currStepModels);
+		loadVFHs(model_dir, stepfile, currStepModels);
 	}
 
 	//loadVFHs of next step
 	nextStepModels.clear();
 	stepfile = "step_" + std::to_string(currStep + 1) + "_";
-	loadVFHs(model_dir, ".pcd", stepfile, nextStepModels);
+	loadVFHs(model_dir, stepfile, nextStepModels);
 
 	//combine models of next step and current step
 	compModels.clear();
@@ -758,7 +700,7 @@ float Recognizer::computeAveOfStep(int step) {
 
 	stepfile = "step_" + std::to_string(currStep+1) + "_";
 	for (boost::filesystem::directory_iterator it(model_dir); it != boost::filesystem::directory_iterator(); ++it) {
-		if (boost::filesystem::is_regular_file(it->status()) && boost::filesystem::extension(it->path()) == ".pcd"  && it->path().filename().string().find(stepfile) != std::string::npos) {
+		if (boost::filesystem::is_regular_file(it->status()) && it->path().filename().string().find(stepfile) != std::string::npos) {
 			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 			helper.readPCD(it->path().string(), cloud);
 			sum += cloud->size();
@@ -768,16 +710,35 @@ float Recognizer::computeAveOfStep(int step) {
 	return sum / count;
 }
 
-void Recognizer::loadVFHs(const boost::filesystem::path &file_dir, std::string extension, std::string stepfile, std::vector<vfh_model> &models) {
+void Recognizer::loadVFHs(const boost::filesystem::path &file_dir, std::string stepfile, std::vector<vfh_model> &models) {
 	for (boost::filesystem::directory_iterator it(file_dir); it != boost::filesystem::directory_iterator(); ++it) {
 		if (boost::filesystem::is_directory(it->status())) {
 			std::stringstream ss;
 			ss << it->path();
 			//pcl::console::print_highlight("Loading %s (%lu models loaded so far).\n", ss.str().c_str(), (unsigned long)models.size());
-			loadVFHs(it->path(), extension, stepfile, models);
+			loadVFHs(it->path(), stepfile, models);
 		}
-		if (boost::filesystem::is_regular_file(it->status()) && boost::filesystem::extension(it->path()) == extension && it->path().filename().string().find(stepfile) != std::string::npos) {
+		if (boost::filesystem::is_regular_file(it->status()) && it->path().filename().string().find(stepfile) != std::string::npos) {
 			//pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+			/*ifstream in(it->path().string());
+			std::cout << "Loading " << it->path().string() << std::endl;
+			string line;
+			vfh_model m;
+			m.second.resize(408);
+			std::string dirfile = it->path().filename().string();
+			size_t lastindex = dirfile.find_last_of(".");
+			m.first = dirfile.substr(0, lastindex);
+			int i = 0;
+			while (getline(in, line)) {
+				//std::cout << line;
+				m.second[i] = stof(line);
+				i++;
+			}
+			in.close();
+
+			models.push_back(m);*/
+
+
 			pcl::PointCloud<pcl::VFHSignature308>::Ptr vfhs(new pcl::PointCloud<pcl::VFHSignature308>());
 
 			helper.readVFHinPCD(it->path().string(), vfhs);
@@ -791,50 +752,10 @@ void Recognizer::loadVFHs(const boost::filesystem::path &file_dir, std::string e
 				m.second[i] = vfhs->points[0].histogram[i];
 			}
 			m.first = it->path().filename().string();
-			//if (loadHist(file_dir / it->path().filename(), m))
 			models.push_back(m);
 		}
 	}
 }
-
-
-bool Recognizer::loadHist(const boost::filesystem::path &path, vfh_model &vfh) {
-	int vfh_idx;
-	// Load the file as a PCD
-	try {
-		pcl::PCLPointCloud2 cloud;
-		int version;
-		Eigen::Vector4f origin;
-		Eigen::Quaternionf orientation;
-		pcl::PCDReader r;
-		int type; unsigned int idx;
-		r.readHeader(path.string(), cloud, origin, orientation, version, type, idx);
-
-		vfh_idx = pcl::getFieldIndex(cloud, "vfh");
-		if (vfh_idx == -1)
-			return (false);
-		if ((int)cloud.width * cloud.height != 1)
-			return (false);
-	}
-	catch (const pcl::InvalidConversionException&) {
-		return (false);
-	}
-
-	pcl::PointCloud <pcl::VFHSignature308> point;
-	pcl::io::loadPCDFile(path.string(), point);
-	vfh.second.resize(308);
-
-	std::vector <pcl::PCLPointField> fields;
-	pcl::getFieldIndex(point, "vfh", fields);
-
-	for (size_t i = 0; i < fields[vfh_idx].count; ++i) {
-		vfh.second[i] = point.points[0].histogram[i];
-	}
-	vfh.first = path.string();
-}
-
-
-
 
 
 
@@ -1109,13 +1030,16 @@ void Recognizer::initValuesFromFile() {
 
 	currStep = stoi(keyvalueMap["currStep"]);
 	acceptanceThreshold = stof(keyvalueMap["acceptanceThreshold"]);
+	threshForNormal = acceptanceThreshold;
 	numOfIteration = stoi(keyvalueMap["numOfIteration"]);
 	minOccurPercent = stof(keyvalueMap["minOccurPercent"]);
 	minOccurPercentForSmall = stof(keyvalueMap["minOccurPercentForSmall"]);
 	lowerThreshForSmall = stoi(keyvalueMap["lowerThreshForSmall"]);
 	threshForSmall = stof(keyvalueMap["threshForSmall"]);
 	numOfCandidates = stoi(keyvalueMap["numOfCandidates"]);
+	cloudSizePercent = stof(keyvalueMap["cloudSizePercent"]);
 	distanceThreshold = stof(keyvalueMap["distanceThreshold"]);
+	cloudSizeRejection = stof(keyvalueMap["cloudSizeRejection"]);
 	sizeSmallClouds = stoi(keyvalueMap["sizeSmallClouds"]);
 	isStepByStep = stoi(keyvalueMap["isStepByStep"]);
 	useLogs = stoi(keyvalueMap["useLogs"]);
@@ -1137,4 +1061,140 @@ float Recognizer::round4f(float f) {
 
 double Recognizer::round4d(double d) {
 	return round(d * 10000) / 10000;
+}
+
+int Recognizer::isolateBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
+
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  redBricks;
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  greenBricks;
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  blueBricks;
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  yellowBricks;
+
+	//filter per color
+	int numBricks = 0;
+	numBricks += filterColorBricks(cloud, redBricks, 255, 70, 69, 0, 69, 0);
+	numBricks += filterColorBricks(cloud, greenBricks, 100, 0, 255, 101, 100, 0);
+	numBricks += filterColorBricks(cloud, blueBricks, 79, 0, 100, 0, 255, 101);
+	numBricks += filterColorBricks(cloud, yellowBricks, 255, 101, 255, 101, 100, 0);
+
+	return numBricks;
+
+	//std::cout << "Num RGBY Final Bricks: " << numBricks << std::endl;
+}
+
+int Recognizer::filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &filtered_bricks, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin) {
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr input_noA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	pcl::copyPointCloud(*cloud, *input_noA);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr singlecloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+	pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond(new pcl::ConditionAnd<pcl::PointXYZRGB>());
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::LT, rMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::GT, rMin)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("g", pcl::ComparisonOps::LT, gMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("g", pcl::ComparisonOps::GT, gMin)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("b", pcl::ComparisonOps::LT, bMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("b", pcl::ComparisonOps::GT, bMin)));
+
+	// build the filter 
+	pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem;
+	condrem.setCondition(color_cond);
+	condrem.setInputCloud(input_noA);
+
+	// apply filter 
+	condrem.filter(*input_noA);
+
+	pcl::copyPointCloud(*input_noA, *singlecloud);
+	if (singlecloud->size() > 0) {
+		return clusterBricks(singlecloud, filtered_bricks);
+	}
+
+	return 0;
+}
+
+int Recognizer::clusterBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters) {
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>);
+	tree->setInputCloud(cloud);
+
+	std::vector<pcl::PointIndices> cluster_indices;
+	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
+	ec.setClusterTolerance(0.004); // 2cm
+	ec.setMinClusterSize(30);
+	ec.setMaxClusterSize(1000);
+	ec.setSearchMethod(tree);
+	ec.setInputCloud(cloud);
+	ec.extract(cluster_indices);
+
+	int j = 0;
+	for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin(); it != cluster_indices.end(); ++it)
+	{
+		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZRGBA>);
+		for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
+			cloud_cluster->points.push_back(cloud->points[*pit]); //*
+		cloud_cluster->width = cloud_cluster->points.size();
+		cloud_cluster->height = 1;
+		cloud_cluster->is_dense = true;
+		cloudclusters.push_back(cloud_cluster);
+		std::cout << "Cloud cluster Size: " << cloud_cluster->size() << std::endl;
+		j++;
+	}
+	std::cout << "Cloud Size: " << cloud->size() << " Num Bricks: " << j << std::endl;
+	return j;
+
+}
+
+
+void Recognizer::createColorHistogram(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<float> &hist) {
+	int nbins = 100;
+	double bin_interval = 3 * 256.0 / nbins;
+	double bin_interval_h = 3 * 360.0 / nbins;
+	double bin_interval_s = 3 * 1.0 / nbins;
+	double bin_interval_v = 3 * 1.0 / nbins;
+
+	//Initialize a temp histogram with zeros
+	std::vector<double> color;
+	color.resize(nbins);
+	for (int i = 0; i< nbins; i++)
+		color[i] = 0.0;
+
+	//Keep binning the histogram based on the color of the points in cloud
+	double R = 0, G = 0, B = 0;
+	for (size_t i = 0; i < cloud->points.size(); i++)
+	{
+		R = cloud->points[i].r;
+		G = cloud->points[i].g;
+		B = cloud->points[i].b;
+		int ind;
+		double r, g, b, h, s, v, d;
+		double min_, max_;
+		r = (double)R / 255.0;
+		g = (double)G / 255.0;
+		b = (double)B / 255.0;
+		min_ = std::min(r, std::min(g, b));
+		max_ = std::max(r, std::max(g, b));
+		if (max_ == min_)
+		{
+			v = max_;
+			h = 0;
+			s = 0;
+		}
+		else
+		{
+			d = (r == min_) ? g - b : ((b == min_) ? r - g : b - r);
+			h = (r == min_) ? 3 : ((b == min_) ? 1 : 5);
+			h = 60 * (h - d / (max_ - min_));
+			s = (max_ - min_) / max_;
+			v = max_;
+		}
+		ind = h / bin_interval_h;
+		color[ind]++;
+		ind = s / bin_interval_s;
+		color[ind + nbins / 3]++;
+		ind = v / bin_interval_v;
+		color[ind + 2 * nbins / 3]++;
+	}
+
+	for (int i = 0; i < nbins; i++)
+	{
+
+		hist[i] = color[i] / cloud->points.size();
+	}
 }

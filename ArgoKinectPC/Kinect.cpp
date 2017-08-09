@@ -377,6 +377,7 @@ void Kinect::initializeArgo() {
 	}
 	
 	if (featureExtraction) {
+		cout << "welcome to feature extraction ";
 		trainer.convertToHists();
 	}
 }

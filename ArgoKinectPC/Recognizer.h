@@ -74,7 +74,7 @@ private:
 
 	const std::string models_hd5_filename = "features/models.hd5";
 	const std::string models_list_filename = "features/models.list";
-	const std::string kdtree_filename = "features/kdtree.idx";
+	const std::string kdtree_filename = base_dir + "kdtree.idx";
 
 	std::vector<vfh_model> compModels;
 	std::vector<vfh_model> nextStepModels;
@@ -100,6 +100,7 @@ private:
 
 	//used by Kingston
 	float acceptanceThreshold;
+	float threshForNormal;
 	int numOfIteration;
 	int currentIteration;
 	std::map<std::string, std::pair<float, int> > myMultiValueMap;
@@ -112,6 +113,9 @@ private:
 	float threshForSmall;
 	float minOccurPercentForSmall;
 	int sizeSmallClouds;
+	float cloudSizePercent;
+
+	float cloudSizeRejection;
 	
 
 	int isStepByStep;
@@ -133,6 +137,9 @@ private:
 	int showSceneSize;
 	int useServer;
 	float aveSizeOfNext;
+	bool initAssembly;
+	string selectmodelname;
+	int bin_size;
 
 	string db_add;
 	string db_user;
@@ -168,8 +175,7 @@ public:
 	void init();
 	void lowerVisibleArea(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  cloud, std::string axis, float min, float max);
 	void loadHistogramsFromFiles();
-	void loadVFHs(const boost::filesystem::path &file_dir, std::string extension, std::string stepfile, std::vector<vfh_model> &models);
-	bool loadHist(const boost::filesystem::path &path, vfh_model &vfh);
+	void loadVFHs(const boost::filesystem::path &file_dir, std::string stepfile, std::vector<vfh_model> &models);
 	void nearestKSearch(flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
 		int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances);
 	vector<string> split(string str, char delimiter);
@@ -177,6 +183,11 @@ public:
 	float round4f(float f);
 	double round4d(double d);
 	float computeAveOfStep(int step);
+
+	int isolateBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud);
+	int filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &filtered_bricks, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin);
+	int clusterBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters);
+	void createColorHistogram(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<float> &hist);
 };
 
 #endif

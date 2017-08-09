@@ -21,6 +21,7 @@ class Trainer {
 		void computeNormals(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float val);
 		void computeVFHFeatures(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::VFHSignature308>::Ptr vfhs);
 		void downsampleCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud);
+		void createColorHistogram(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<float> &hist);
 };
 
 #endif

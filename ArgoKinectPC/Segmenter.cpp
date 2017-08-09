@@ -13,6 +13,8 @@
 #include <string>
 #include <pcl/point_types_conversion.h>
 #include <pcl/surface/concave_hull.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/region_growing_rgb.h>
 
 
 Segmenter::Segmenter() {
@@ -55,13 +57,23 @@ void Segmenter::segmentCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr input, pcl:
 		normalizeColor();
 
 		//remove skin/iwan lang bricks
-		isolateBricks();
+		isolateBricksCloud();
 		//extractBricks();
 		
 		//remove outliers, mga fake colors
 		removeOutliers();
 
 		centerCloud(this->input);
+
+
+		/*std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  trial;
+		if (this->input->size() > 0) {
+			input_noA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+			pcl::copyPointCloud(*this->input, *input_noA);
+			regionSegment(input_noA, trial);
+		}*/
+
+
 		*output = *(this->input);
 	}
 
@@ -173,137 +185,40 @@ int Segmenter::mod(int a, int b) {
 	return ret;
 }
 
-void Segmenter::filterHue(pcl::PointCloud<pcl::PointXYZHSV>::Ptr input, int hue, int hue_threshold, pcl::PointCloud<pcl::PointXYZHSV>::Ptr output)
-{
-	float hue_min = mod(hue - hue_threshold, 360);
-	float hue_max = mod(hue + hue_threshold, 360);
-
-	//if (hue_max > )
-
-	for (size_t i = 0; i < input->points.size(); i++) {
-		// check to see if we are in range
-		if (input->points[i].h < hue_max || input->points[i].h > hue_min)
-		{
-			output->points.push_back(input->points[i]);
-			//std::cout << "hue: " << input->points[i].h << std::endl;
-		}
-			
-	}
-}
-
-void Segmenter::extractBricks() {
-
-	//if (!viewer->updatePointCloud(input, "normalized")) {
-		//viewer->addPointCloud(input, "normalized");
-	//}
-	pcl::PointCloud<pcl::PointXYZHSV>::Ptr filtered_bricks(new pcl::PointCloud<pcl::PointXYZHSV>());
-	pcl::PointCloud<pcl::PointXYZHSV>::Ptr  redBricks(new pcl::PointCloud<pcl::PointXYZHSV>);
-	pcl::PointCloud<pcl::PointXYZHSV>::Ptr  greenBricks(new pcl::PointCloud<pcl::PointXYZHSV>);
-	pcl::PointCloud<pcl::PointXYZHSV>::Ptr  blueBricks(new pcl::PointCloud<pcl::PointXYZHSV>);
-	pcl::PointCloud<pcl::PointXYZHSV>::Ptr  yellowBricks(new pcl::PointCloud<pcl::PointXYZHSV>);
-	input_hsv = boost::make_shared<pcl::PointCloud<pcl::PointXYZHSV>>();
-	input_hsv->clear();
-
-	pcl::PointCloudXYZRGBAtoXYZHSV(*input, *input_hsv);
-	//filterBrickColor(redBricks, 10, 40, 0.8, 0.0, 1.0, 0.4);
-	//filterBrickColor(redBricks, 0, 7, 1.0, 0.8, 1.0, 0.9);
-	//std::cout << "red size: " << redBricks->size() << std::endl;
-	//filterBrickColor(greenBricks, 20, 5, 0.7, 0.0, 1.0, 0.1);
-	filterBrickColor(blueBricks, 240, 10, 1.0, 0.8, 1.0, 0.7);
-	//filterBrickColor(yellowBricks, 60, 10, 1.0, 0.9, 1.0, 0.1);
-	
-	*filtered_bricks += *redBricks;
-	*filtered_bricks += *greenBricks;
-	*filtered_bricks += *blueBricks;
-	*filtered_bricks += *yellowBricks;
-
-	Segmenter::PointCloudXYZHSVtoXYZRGBA(*filtered_bricks, *output);
-	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> segmented_cloud_color_handler(output, 0, 255, 0);
-	//if (!viewer->updatePointCloud(output, segmented_cloud_color_handler, "segmented_cloud")) {
-		//viewer->addPointCloud(output, segmented_cloud_color_handler, "segmented_cloud");
-	//}
-	*input = *output;
-}
-
-void Segmenter::filterBrickColor(pcl::PointCloud<pcl::PointXYZHSV>::Ptr filtered, int h, int h_thresh, int sMax, int sMin, int vMax, int vMin)
-{
-	filtered->clear();
-
-	filterHue(input_hsv, h, h_thresh, filtered);
-	
-	pcl::PassThrough<pcl::PointXYZHSV> pass;
-	/*pass.setInputCloud(filtered);
-	pass.setFilterFieldName("h");
-	pass.setFilterLimits(h_thresh, h);
-	pass.setFilterLimitsNegative(false);
-	pass.filter(*filtered);*/
-
-	pass.setInputCloud(filtered);
-	pass.setFilterFieldName("s");
-	pass.setFilterLimits(sMin, sMax);
-	pass.setFilterLimitsNegative(false);
-	pass.filter(*filtered);
-
-	pass.setInputCloud(filtered);
-	pass.setFilterFieldName("v");
-	pass.setFilterLimits(vMin, vMax);
-	pass.setFilterLimitsNegative(false);
-	pass.filter(*filtered);
-
-	std::cout << "filtered size: " << filtered->size() << std::endl;
-
-	
-}
-
-void Segmenter::PointCloudXYZHSVtoXYZRGBA(pcl::PointCloud<pcl::PointXYZHSV>& in, pcl::PointCloud<pcl::PointXYZRGBA>& output) {
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr out (new pcl::PointCloud<pcl::PointXYZRGB>());
-	out->width = in.width;
-	out->height = in.height;
-	out->header = in.header;
-	for (size_t i = 0; i < in.points.size(); i++) {
-		pcl::PointXYZRGB p;
-		pcl::PointXYZHSVtoXYZRGB(in.points[i], p);
-		p.x = in.points[i].x;
-		p.y = in.points[i].y;
-		p.z = in.points[i].z;
-		out->points.push_back(p);
-	}
-	pcl::copyPointCloud(*out, output);
-	for (size_t i = 0; i < output.size(); i++) {
-		output.points[i].a = 255;
-	}
-}
 
 
 void Segmenter::isolateBricks() {
 	//init
 	input_noA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
 	pcl::copyPointCloud(*input, *input_noA);
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  redBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  greenBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  blueBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  yellowBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  redBricks;
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  greenBricks;
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  blueBricks;
+	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>  yellowBricks;
 
 	//filter per color
-	filterColorBricks(redBricks, 255, 70, 69, 0, 69, 0);
-	filterColorBricks(greenBricks, 100, 0, 255, 101, 100, 0);
-	filterColorBricks(blueBricks, 79, 0, 100, 0, 255, 101);
-	filterColorBricks(yellowBricks, 255, 101, 255, 101, 100, 0);
+	numBricks = 0;
+	numBricks += filterColorBricks(redBricks, 255, 70, 69, 0, 69, 0);
+	numBricks += filterColorBricks(greenBricks, 100, 0, 255, 101, 100, 0);
+	numBricks += filterColorBricks(blueBricks, 79, 0, 100, 0, 255, 101);
+	numBricks += filterColorBricks(yellowBricks, 255, 101, 255, 101, 100, 0);
 
+	
 
-
+	//std::cout << "Num RGBY Final Bricks: " << numBricks << std::endl;
 	//if (!viewer->updatePointCloud(output, "normalized")) {
 		//viewer->addPointCloud(output, "normalized");
 	//}
 
-	output->clear();
-	*output += *redBricks;
-	*output += *greenBricks;
-	*output += *blueBricks;
-	*output += *yellowBricks;
-	
+	/*output->clear();
+	ddCloudsToBigCloud(output, redBricks);
+	addCloudsToBigCloud(output, greenBricks);
+	addCloudsToBigCloud(output, blueBricks);
+	addCloudsToBigCloud(output, yellowBricks);
+
 	//std::cout << "cloud size: " << output->size() << std::endl;
 	*input = *output;
+	*/
 
 	//pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> segmented_cloud_color_handler(output, 255, 0, 0);
 	//if (!viewer->updatePointCloud(output, segmented_cloud_color_handler, "segmented_cloud")) {
@@ -311,9 +226,9 @@ void Segmenter::isolateBricks() {
 	//}
 }
 
-void Segmenter::filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin) {
+int Segmenter::filterColorBricks(std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &filtered_bricks, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr dummyNoAFiltered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
-	
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr singlecloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
 	pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond(new pcl::ConditionAnd<pcl::PointXYZRGB>());
 	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::LT, rMax)));
 	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::GT, rMin)));
@@ -330,7 +245,12 @@ void Segmenter::filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filter
 	// apply filter 
 	condrem.filter(*dummyNoAFiltered);
 
-	pcl::copyPointCloud(*dummyNoAFiltered, *filtered);
+	pcl::copyPointCloud(*dummyNoAFiltered, *singlecloud);
+	if (singlecloud->size() > 0) {
+		return clusterBricks(singlecloud, filtered_bricks);
+	}
+		
+	return 0;
 }
 
 void Segmenter::normalizeColor() {
@@ -365,4 +285,142 @@ void Segmenter::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
 	tMatrix.translate(centroid.head<3>());
 
 	pcl::transformPointCloud(*cloud, *cloud, tMatrix.inverse());
+}
+
+int Segmenter::clusterBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters) {
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>);
+	tree->setInputCloud(cloud);
+
+	std::vector<pcl::PointIndices> cluster_indices;
+	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
+	ec.setClusterTolerance(0.01); // 2cm
+	ec.setMinClusterSize(30);
+	ec.setMaxClusterSize(800);
+	ec.setSearchMethod(tree);
+	ec.setInputCloud(cloud);
+	ec.extract(cluster_indices);
+
+	int j = 0;
+	for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin(); it != cluster_indices.end(); ++it)
+	{
+		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZRGBA>);
+		for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
+			cloud_cluster->points.push_back(cloud->points[*pit]); //*
+		cloud_cluster->width = cloud_cluster->points.size();
+		cloud_cluster->height = 1;
+		cloud_cluster->is_dense = true;
+		cloudclusters.push_back(cloud_cluster);
+		j++;
+	}
+	//std::cout << "Num Bricks: " << j << std::endl;
+	return j;
+
+}
+
+void Segmenter::addCloudsToBigCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters) {
+	for (std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>::const_iterator it = cloudclusters.begin(); it != cloudclusters.end(); ++it)
+	{
+		*cloud += **it;
+	}
+}
+
+
+void Segmenter::regionSegment(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters) {
+	pcl::search::Search <pcl::PointXYZRGB>::Ptr tree = boost::shared_ptr<pcl::search::Search<pcl::PointXYZRGB> >(new pcl::search::KdTree<pcl::PointXYZRGB>);
+	pcl::RegionGrowingRGB<pcl::PointXYZRGB> reg;
+	reg.setInputCloud(cloud);
+	reg.setSearchMethod(tree);
+	reg.setDistanceThreshold(6);
+	reg.setPointColorThreshold(5);
+	reg.setRegionColorThreshold(5);
+	reg.setMinClusterSize(30);
+
+	std::vector <pcl::PointIndices> clusters;
+	reg.extract(clusters);
+
+	int j = 0;
+	for (std::vector<pcl::PointIndices>::const_iterator it = clusters.begin(); it != clusters.end(); ++it)
+	{
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
+		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_clusterA(new pcl::PointCloud<pcl::PointXYZRGBA>);
+		for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
+			cloud_cluster->points.push_back(cloud->points[*pit]); //*
+		cloud_cluster->width = cloud_cluster->points.size();
+		cloud_cluster->height = 1;
+		cloud_cluster->is_dense = true;
+		pcl::copyPointCloud(*cloud_cluster, *cloud_clusterA);
+		cloudclusters.push_back(cloud_clusterA);
+		j++;
+	}
+	std::cout << "Num Region Bricks: " << j << std::endl;
+
+	pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud = reg.getColoredCloud();
+	pcl::visualization::CloudViewer viewer("Cluster viewer");
+	viewer.showCloud(colored_cloud);
+	while (!viewer.wasStopped())
+	{
+		boost::this_thread::sleep(boost::posix_time::microseconds(100));
+	}
+}
+
+
+void Segmenter::isolateBricksCloud() {
+	//init
+	input_noA = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+	pcl::copyPointCloud(*input, *input_noA);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  redBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  greenBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  blueBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  yellowBricks(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+	//filter per color
+	filterColorBricksCloud(redBricks, 255, 70, 69, 0, 69, 0);
+	filterColorBricksCloud(greenBricks, 100, 0, 255, 101, 100, 0);
+	filterColorBricksCloud(blueBricks, 79, 0, 100, 0, 255, 101);
+	filterColorBricksCloud(yellowBricks, 255, 101, 255, 101, 100, 0);
+
+
+
+	//if (!viewer->updatePointCloud(output, "normalized")) {
+	//viewer->addPointCloud(output, "normalized");
+	//}
+
+	output->clear();
+	*output += *redBricks;
+	*output += *greenBricks;
+	*output += *blueBricks;
+	*output += *yellowBricks;
+
+	*input = *output;
+
+	
+	//std::cout << "cloud size: " << output->size() << std::endl;
+	
+
+	//pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBA> segmented_cloud_color_handler(output, 255, 0, 0);
+	//if (!viewer->updatePointCloud(output, segmented_cloud_color_handler, "segmented_cloud")) {
+	//viewer->addPointCloud(output, segmented_cloud_color_handler, "segmented_cloud");
+	//}
+}
+
+void Segmenter::filterColorBricksCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin) {
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr dummyNoAFiltered = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+
+	pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond(new pcl::ConditionAnd<pcl::PointXYZRGB>());
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::LT, rMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("r", pcl::ComparisonOps::GT, rMin)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("g", pcl::ComparisonOps::LT, gMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("g", pcl::ComparisonOps::GT, gMin)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("b", pcl::ComparisonOps::LT, bMax)));
+	color_cond->addComparison(pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr(new pcl::PackedRGBComparison<pcl::PointXYZRGB>("b", pcl::ComparisonOps::GT, bMin)));
+
+	// build the filter 
+	pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem;
+	condrem.setCondition(color_cond);
+	condrem.setInputCloud(input_noA);
+
+	// apply filter 
+	condrem.filter(*dummyNoAFiltered);
+
+	pcl::copyPointCloud(*dummyNoAFiltered, *filtered);
 }

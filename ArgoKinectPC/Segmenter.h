@@ -15,6 +15,8 @@ class Segmenter {
 		const int DEPTH_WIDTH = 512;
 		const int DEPTH_HEIGHT = 424;
 
+		int numBricks;
+
 	public:
 		Segmenter();
 		~Segmenter();
@@ -25,14 +27,15 @@ class Segmenter {
 		void alignPlaneToAxis();
 		void centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud);
 		void isolateBricks();
-		void filterColorBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin);
+		int filterColorBricks(std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &filtered_bricks, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin);
 		void normalizeColor();
 		void removeOutliers();
-		void extractBricks();
-		void filterHue(pcl::PointCloud<pcl::PointXYZHSV>::Ptr cloud, int hue, int hue_threshold, pcl::PointCloud<pcl::PointXYZHSV>::Ptr output);
-		void PointCloudXYZHSVtoXYZRGBA(pcl::PointCloud<pcl::PointXYZHSV>& in, pcl::PointCloud<pcl::PointXYZRGBA>& output);
-		void filterBrickColor(pcl::PointCloud<pcl::PointXYZHSV>::Ptr filtered, int h, int h_thresh, int sMax, int sMin, int vMax, int vMin);
 		int mod(int a, int b);
+		int clusterBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters);
+		void addCloudsToBigCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters);
+		void regionSegment(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters);
+		void isolateBricksCloud();
+		void filterColorBricksCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered, int rMax, int rMin, int gMax, int gMin, int bMax, int bMin);
 };
 
 #endif
