@@ -26,6 +26,7 @@ public:
 	void updateNextStep(MYSQL *connection, int nextStep);
 	void updateModelSelected(MYSQL *connection, int modelSelected);
 	void updateHasError(MYSQL *connection, int hasError);
+	void setRotValue(MYSQL * connection, int rotValue);
 
 };
 

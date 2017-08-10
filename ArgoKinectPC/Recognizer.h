@@ -104,6 +104,7 @@ private:
 	int numOfIteration;
 	int currentIteration;
 	std::map<std::string, std::pair<float, int> > myMultiValueMap;
+	std::map<std::string, std::vector<float> > actualValues;
 	float leastAverage;
 	string finalAnswer;
 	float distanceThreshold;

@@ -217,6 +217,15 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 			initResultsFile = true;
 		}
 		if (currStep < maxSteps) {
+/*			if (!hasUpdate && useServer) {
+				int dbstep = sqlCon.getCurrentStep(connection);
+				if (dbstep != currStep) {
+					currStep = dbstep;
+					hasUpdate = true;
+				}
+			}*/
+			
+
 			if (hasUpdate) {
 				if (isStepByStep) {
 					string inputthis;
@@ -226,12 +235,19 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				
 				//std::cout << "Loading needed files for model......" << maxSteps << std::endl;
 				aveSizeOfNext = computeAveOfStep(currStep + 1);
+				
+				//if (nextStepModel->size() > 0)
+					//*visual = *nextStepModel;
+				//getCloudToCompare(nextStepModel);
 				std::cout << "Average size of next: " << aveSizeOfNext << std::endl;
 				loadHistogramsFromFiles();
 				hasUpdate = false;
 				hasError = false;
 			}
 			else if (scene->size() > 1) {
+				int numBricksScene = isolateBricks(input);
+				std::cout << "Num Bricks Scene: " << numBricksScene << std::endl;
+
 				//lower thresholds for smaller clouds
 				if (lowerThreshForSmall && aveSizeOfNext < sizeSmallClouds) {
 					minOccurPercent = minOccurPercentForSmall;
@@ -318,6 +334,36 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 
 							/*candidateMatches[candidateMatchesIndex] = k_indices[0][i];
 							candidateMatchesIndex++;*/
+						if (currStep < 7) {
+							if (numBricksScene == actualValues[compModels.at(k_indices[0][i]).first.c_str()][0])
+								k_distances[0][i] -= 5;
+							else
+								k_distances[0][i] += 5;
+
+							if (numBricksScene >= actualValues[compModels.at(k_indices[0][i]).first.c_str()][3])
+								k_distances[0][i] -= 15;
+							else
+								k_distances[0][i] += 10;
+
+							float cloudsize = actualValues[compModels.at(k_indices[0][i]).first.c_str()][2];
+							if (cloudsize > scene->size() - cloudsize*cloudSizePercent && cloudsize < scene->size() + cloudsize*cloudSizePercent)
+								k_distances[0][i] -= 10;
+							else
+								k_distances[0][i] += 10;
+					}
+						else {
+							if(numBricksScene == actualValues[compModels.at(k_indices[0][i]).first.c_str()][0])
+								k_distances[0][i] -= 10;
+							else
+								k_distances[0][i] += 5;
+
+							float cloudsize = actualValues[compModels.at(k_indices[0][i]).first.c_str()][2];
+							if (cloudsize > scene->size() - cloudsize*cloudSizePercent && cloudsize < scene->size() + cloudsize*cloudSizePercent)
+								k_distances[0][i] -= 15;
+							else
+								k_distances[0][i] += 10;
+						}
+							
 
 							if (myMultiValueMap.find(compModels.at(k_indices[0][i]).first.c_str()) == myMultiValueMap.end())
 							{
@@ -336,7 +382,17 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 					}
 					if (currentIteration < numOfIteration)
 						currentIteration++;
-					
+
+					vector<string> sepp;
+					int angle;
+					string fullline = compModels.at(k_indices[0][0]).first.c_str();
+					sepp = split(fullline, '_');
+					angle = stoi(sepp[3]);
+
+					/*if (useServer) {
+						sqlCon.setRotValue(connection, angle);
+					}*/
+
 					if(currentIteration >= numOfIteration)
 					{
 
@@ -432,9 +488,12 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 							sep2 = split(secondChoiceKaLang.first, '_');
 							second_best_step = sep2[2];
 						}
-
+						if (bestCandidate.second > 100) {
+							hasError = true;
+							finalAnswer = "unknown";
+						}
 						//case 1: if unkown best hasError = true
-						if (bestCandidate.first == "unknown" && secondChoiceKaLang.first == "unknown2")
+						else if (bestCandidate.first == "unknown" && secondChoiceKaLang.first == "unknown2")
 						{
 							hasError = true;
 							finalAnswer = "unknown";
@@ -467,32 +526,41 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 						
 						if (!hasError) {
 							pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
-							helper.readPCD("templates/" + selectmodelname + "/" + finalAnswer /*+ ".pcd"*/, cloud);
+							//helper.readPCD("templates/" + selectmodelname + "/" + finalAnswer , cloud);
 
 							vector<string> sep3 = split(finalAnswer, '_');
 							std::cout << "Recognized Step: " + sep3[2] << std::endl;
 							int detectedStep = stoi(sep3[2]);
-							float angle = stof(sep3[3]);
+							int angle = stoi(sep3[3]);
 
+							if (useServer) {
+								sqlCon.setRotValue(connection, angle);
+							}
+
+							/*if (!trackingActive) {
+								Eigen::Affine3f tMatrix = Eigen::Affine3f::Identity();
+								tMatrix.rotate(Eigen::AngleAxisf(angle * M_PI / 180.0, Eigen::Vector3f::UnitY()));
+								initialTransform = tMatrix.matrix();
+								trackingActive = true;
+							}*/
+							
 							//rotate around y axis by that angle
 
-							int numBricksScene = isolateBricks(input);
-							std::cout << "Num Bricks Scene: " << numBricksScene << std::endl;
 
 							if (detectedStep == currStep + 1 && bestCandidate.second < acceptanceThreshold) {
-								pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
-								helper.readPCD("templates/" + selectmodelname + "/" + finalAnswer /*+ ".pcd"*/, cloud);
+								//pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+								//helper.readPCD("templates/" + selectmodelname + "/" + finalAnswer, cloud);
 								
-								int numBricksTemplate = isolateBricks(cloud);
+								//int numBricksTemplate = isolateBricks(cloud);
 								
-								std::cout << "Num Bricks Template: " << numBricksTemplate << std::endl;
-								if (cloud->size() > scene->size() - cloud->size()*cloudSizePercent && cloud->size() < scene->size() + cloud->size()*cloudSizePercent)
-								if (numBricksScene == numBricksTemplate)
-									moveToNextStep = true;
-								else {
-									moveToNextStep = false;
+								//std::cout << "Num Bricks Template: " << numBricksTemplate << std::endl;
+								//if (cloud->size() > scene->size() - cloud->size()*cloudSizePercent && cloud->size() < scene->size() + cloud->size()*cloudSizePercent)
+								//if (numBricksScene == numBricksTemplate)
+								moveToNextStep = true;
+								//else {
+									//moveToNextStep = false;
 									//std::cout << "Rejected!!!Cloud Wanted: " << numBricksTemplate << " but your scene has: " << numBricksScene  << std::endl;
-								}
+								//}
 									
 							}		
 							else
@@ -509,11 +577,14 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 					}
 				}
 
+				//if (trackingActive)
+					//performICP();
 				//visualize top cloud
 				/*std::string viewmodel;
 				switch (selectedModel) {
 					case 1: viewmodel = snowcat; break;
 					case 2: viewmodel = pyramid; break;
+
 					case 3: viewmodel = quacktro; break;
 					case 4: viewmodel = jay; break;
 					case 5: viewmodel = heart; break;
@@ -579,6 +650,7 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 			if (useServer) {
 				sqlCon.updateNextStep(connection, 0);
 				sqlCon.updateModelSelected(connection, 0);
+				sqlCon.setRotValue(connection, 0);
 			}
 		}
 		
@@ -629,12 +701,12 @@ void Recognizer::loadHistogramsFromFiles() {
 	}
 
 	//load VFHs of curr step
-	if (nextStepModels.size() != 0) {
-		std::cout << "no need load new" << std::endl;
-		currStepModels.swap(nextStepModels);
-	}
+	//if (nextStepModels.size() != 0) {
+		//std::cout << "no need load new" << std::endl;
+		//currStepModels.swap(nextStepModels);
+	//}
 		
-	else if (currStep != 0) {
+	if (currStep != 0) {
 		currStepModels.clear();
 		stepfile = "step_" + std::to_string(currStep) + "_";
 		loadVFHs(model_dir, stepfile, currStepModels);
@@ -649,6 +721,21 @@ void Recognizer::loadHistogramsFromFiles() {
 	compModels.clear();
 	compModels.insert(compModels.end(), currStepModels.begin(), currStepModels.end());
 	compModels.insert(compModels.end(), nextStepModels.begin(), nextStepModels.end());
+
+	actualValues.clear();
+	for (int i = 0; i < compModels.size(); i++) {
+		std::vector<float> intvect;
+		intvect.resize(4);
+		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = boost::make_shared<pcl::PointCloud<pcl::PointXYZRGBA>>();
+		helper.readPCD("templates/" + selectmodelname + "/" + compModels[i].first, cloud);
+		vector<string> sepp;
+		sepp = split(compModels[i].first, '_');
+		intvect[0] = stof(sepp[2]);
+		intvect[1] = stof(sepp[3]);
+		intvect[2] = cloud->size();
+		intvect[3] = isolateBricks(cloud);
+		actualValues[compModels[i].first] = intvect;
+	}
 
 	flann::Matrix<float> trainingdata(new float[compModels.size() * compModels[0].second.size()], compModels.size(), compModels[0].second.size());
 
@@ -775,8 +862,8 @@ void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved
 		case 5: stepfile = heart; break;
 	}
 	
-	//helper.readPCD(stepfile + std::to_string(currStep + 1) + ".pcd", saved);
-	helper.readPCD("templates/duck/duck_step_1_0.pcd", saved);
+	helper.readPCD("steps/" + stepfile + "_step_" + std::to_string(currStep + 1) + ".pcd", saved);
+	//helper.readPCD("templates/duck/duck_step_1_0.pcd", saved);
 	std::cout << "Obtained cloud " << saved->size() << std::endl;
 	centerCloud(saved);
 }
@@ -951,6 +1038,11 @@ void Recognizer::estimatePose()
 
 void Recognizer::performICP()
 {
+	copyPointCloud(*nextStepModel, *modelPointNormal);
+	copyPointCloud(*input, *scenePointNormal);
+
+	computePointNormals(modelPointNormal, 10);
+	computePointNormals(scenePointNormal, 10);
 	Eigen::Matrix4f transformation_matrix = Eigen::Matrix4f::Identity();
 	pcl::IterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> icp;
 	icp.setMaximumIterations(1000);
@@ -965,6 +1057,9 @@ void Recognizer::performICP()
 	icp.align(*aligned, initialTransform);
 	if (icp.hasConverged()) {
 		transformation_matrix = icp.getFinalTransformation();
+		transformation_matrix(0, 3) = 0.0f;
+		transformation_matrix(1, 3) = 0.0f;
+		transformation_matrix(2, 3) = 0.0f;
 		initialTransform = transformation_matrix;
 		//std::cout << "Outliers: " << icp. << std::endl;
 		std::cout << "ICP converged, score: " << icp.getFitnessScore() << std::endl;
@@ -1116,8 +1211,8 @@ int Recognizer::clusterBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std
 
 	std::vector<pcl::PointIndices> cluster_indices;
 	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
-	ec.setClusterTolerance(0.004); // 2cm
-	ec.setMinClusterSize(30);
+	ec.setClusterTolerance(0.008); // 2cm
+	ec.setMinClusterSize(25);
 	ec.setMaxClusterSize(1000);
 	ec.setSearchMethod(tree);
 	ec.setInputCloud(cloud);
@@ -1133,10 +1228,10 @@ int Recognizer::clusterBricks(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, std
 		cloud_cluster->height = 1;
 		cloud_cluster->is_dense = true;
 		cloudclusters.push_back(cloud_cluster);
-		std::cout << "Cloud cluster Size: " << cloud_cluster->size() << std::endl;
+		//std::cout << "Cloud cluster Size: " << cloud_cluster->size() << std::endl;
 		j++;
 	}
-	std::cout << "Cloud Size: " << cloud->size() << " Num Bricks: " << j << std::endl;
+	//std::cout << "Cloud Size: " << cloud->size() << " Num Bricks: " << j << std::endl;
 	return j;
 
 }

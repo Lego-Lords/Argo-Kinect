@@ -130,6 +130,22 @@ void SQLConnect::updateModelSelected(MYSQL * connection, int isSelected) {
 
 }
 
+void SQLConnect::setRotValue(MYSQL * connection, int rotValue) {
+	//UPDATE `argo`.`argo_app_steps` SET `currentStep`='5' WHERE `id`='1';
+	MYSQL_RES *res;	// the results
+	MYSQL_ROW row;	// the results row (line by line)
+
+	std::ostringstream buf;
+	buf << "UPDATE `argo`.`argo_app_steps` SET `rotValue`= '" << rotValue << "'" << " WHERE id = '" << modelSelected << "'";
+
+	string str = buf.str();
+
+	char* s2 = (char *)alloca(str.size() + 1);
+	memcpy(s2, str.c_str(), str.size() + 1);
+	res = mysql_perform_query(connection, s2);
+
+}
+
 void SQLConnect::updateHasError(MYSQL * connection, int hasError) {
 	//UPDATE `argo`.`argo_app_steps` SET `currentStep`='5' WHERE `id`='1';
 	MYSQL_RES *res;	// the results
