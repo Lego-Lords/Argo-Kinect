@@ -341,15 +341,15 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 								k_distances[0][i] += 5;
 
 							if (numBricksScene >= actualValues[compModels.at(k_indices[0][i]).first.c_str()][3])
-								k_distances[0][i] -= 15;
+								k_distances[0][i] -= 5; //was 10
 							else
-								k_distances[0][i] += 10;
+								k_distances[0][i] += 5;
 
 							float cloudsize = actualValues[compModels.at(k_indices[0][i]).first.c_str()][2];
 							if (cloudsize > scene->size() - cloudsize*cloudSizePercent && cloudsize < scene->size() + cloudsize*cloudSizePercent)
-								k_distances[0][i] -= 10;
+								k_distances[0][i] -= 5;
 							else
-								k_distances[0][i] += 10;
+								k_distances[0][i] += 5;//was 10
 					}
 						else {
 							if(numBricksScene == actualValues[compModels.at(k_indices[0][i]).first.c_str()][0])
