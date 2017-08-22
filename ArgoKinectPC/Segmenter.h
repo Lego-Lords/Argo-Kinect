@@ -12,9 +12,6 @@ class Segmenter {
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr input_noA;
 		
 		pcl::PointCloud<pcl::PointXYZHSV>::Ptr input_hsv;
-		const int DEPTH_WIDTH = 512;
-		const int DEPTH_HEIGHT = 424;
-
 		int numBricks;
 
 	public:

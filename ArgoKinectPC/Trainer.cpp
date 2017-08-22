@@ -8,7 +8,7 @@
 
 Trainer::Trainer() {
 	extension = ".pcd";
-	save_dir = "vfhrgb/";
+	save_dir = "features/";
 	file_dir = "templates/";
 	model_name = "duck/";
 }
@@ -48,7 +48,7 @@ void Trainer::loadClouds(const boost::filesystem::path &file_dir, std::string ex
 			hist.resize(100);
 			computeVFHFeatures(cloud, vfhs);
 			
-			createColorHistogram(cloud, hist);
+			//createColorHistogram(cloud, hist);
 			
 			std::string dirfile = save_dir + model_name + it->path().filename().string();
 			size_t lastindex = dirfile.find_last_of(".");
@@ -57,9 +57,9 @@ void Trainer::loadClouds(const boost::filesystem::path &file_dir, std::string ex
 			for (int i = 0; i < 308; i++) {
 				newFeatures << vfhs->points[0].histogram[i] << std::endl;
 			}
-			for (int i = 0; i < 100; i++) {
+			/*for (int i = 0; i < 100; i++) {
 				newFeatures << hist[i] << std::endl;
-			}
+			}*/
 			newFeatures.close();
 			//helper.saveVFHinPCD(save_dir + model_name + it->path().filename().string(), vfhs);
 			//vfh_model m;

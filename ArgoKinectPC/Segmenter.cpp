@@ -100,32 +100,6 @@ void Segmenter::downsampleCloud() {
 	*input = *output;
 }
 
-void Segmenter::segmentPlane() {
-	//Remove the plane (floor/table)
-	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
-
-	seg.setOptimizeCoefficients(true);
-	seg.setModelType(pcl::SACMODEL_PLANE);
-	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(100);
-	seg.setDistanceThreshold(0.006);
-
-	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
-	int i = 0, nr_points = (int)input->points.size();
-
-	// Form the largest planar component from the cloud
-	seg.setInputCloud(input);
-	seg.segment(*inliers, *coefficients);
-
-	extract.setInputCloud(input);
-	extract.setIndices(inliers);
-	extract.setNegative(true);
-	extract.filter(*output);
-	*input = *output;
-}
-
 void Segmenter::alignPlaneToAxis() {
 	if (input->size() > 0) {
 		centerCloud(input);
@@ -324,6 +298,32 @@ void Segmenter::addCloudsToBigCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr clou
 	}
 }
 
+
+void Segmenter::segmentPlane() {
+	//Remove the plane (floor/table)
+	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
+
+	seg.setOptimizeCoefficients(true);
+	seg.setModelType(pcl::SACMODEL_PLANE);
+	seg.setMethodType(pcl::SAC_RANSAC);
+	seg.setMaxIterations(100);
+	seg.setDistanceThreshold(0.006);
+
+	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
+	int i = 0, nr_points = (int)input->points.size();
+
+	// Form the largest planar component from the cloud
+	seg.setInputCloud(input);
+	seg.segment(*inliers, *coefficients);
+
+	extract.setInputCloud(input);
+	extract.setIndices(inliers);
+	extract.setNegative(true);
+	extract.filter(*output);
+	*input = *output;
+}
 
 void Segmenter::regionSegment(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &cloudclusters) {
 	pcl::search::Search <pcl::PointXYZRGB>::Ptr tree = boost::shared_ptr<pcl::search::Search<pcl::PointXYZRGB> >(new pcl::search::KdTree<pcl::PointXYZRGB>);

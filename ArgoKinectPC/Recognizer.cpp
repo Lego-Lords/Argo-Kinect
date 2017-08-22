@@ -139,26 +139,6 @@ Recognizer::~Recognizer() {
 	}
 }
 
-void Recognizer::init()
-{
-	corrs = boost::make_shared<pcl::Correspondences>();
-
-}
-
-
-void Recognizer::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
-
-	Eigen::Vector4f centroid;
-	pcl::compute3DCentroid(*cloud, centroid);
-	std::cout << "Centroid: " << centroid << std::endl;
-
-	Eigen::Affine3f tMatrix = Eigen::Affine3f::Identity();
-	tMatrix.translate(centroid.head<3>());
-	//pcl::getTransformation(0, 0, 0, 0, 0, 0, tMatrix);
-	
-	pcl::transformPointCloud(*cloud, *cloud, tMatrix.inverse());
-}
-
 vector<string> Recognizer::split(string str, char delimiter) {
 	vector<string> internal;
 	stringstream ss(str); // Turn the string into a stream.
@@ -301,11 +281,18 @@ void Recognizer::recognizeState(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr scene) {
 				nearestKSearch(index, sceneHist, k, k_indices, k_distances);
 
 				if (showIterVals) {
+					pcl::console::print_info("The physical size is %d\n", scene->size());
 					pcl::console::print_highlight("The closest %d neighbors for the physical world are:\n", k);
 					for (int i = 0; i < k; ++i) {
 						pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
 							i, compModels.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
 					}
+
+					//COMMENT OUT THIS STUFF TODO URGENT
+					/*string inputthis;
+					std::cout << "Input any string to continue. " << std::endl;
+					cin >> inputthis;*/
+
 				}
 				
 
@@ -844,13 +831,68 @@ void Recognizer::loadVFHs(const boost::filesystem::path &file_dir, std::string s
 	}
 }
 
+void Recognizer::initValuesFromFile() {
+	ifstream in("config.txt");
+	string line;
+	std::map<std::string, std::string> keyvalueMap;
+	while (getline(in, line)) {
+		//do something with the line
+		if (line.at(0) != '#') {
+			vector<string> vectorLine = split(line, '=');
+			keyvalueMap[vectorLine[0]] = vectorLine[1];
+		}
+	}
 
+	useServer = stoi(keyvalueMap["useServer"]);
+
+	if (!useServer) {
+		selectedModel = stoi(keyvalueMap["selectedModel"]);
+		maxSteps = stoi(keyvalueMap["maxSteps"]);
+	}
+
+	currStep = stoi(keyvalueMap["currStep"]);
+	acceptanceThreshold = stof(keyvalueMap["acceptanceThreshold"]);
+	threshForNormal = acceptanceThreshold;
+	numOfIteration = stoi(keyvalueMap["numOfIteration"]);
+	minOccurPercent = stof(keyvalueMap["minOccurPercent"]);
+	minOccurPercentForSmall = stof(keyvalueMap["minOccurPercentForSmall"]);
+	lowerThreshForSmall = stoi(keyvalueMap["lowerThreshForSmall"]);
+	threshForSmall = stof(keyvalueMap["threshForSmall"]);
+	numOfCandidates = stoi(keyvalueMap["numOfCandidates"]);
+	cloudSizePercent = stof(keyvalueMap["cloudSizePercent"]);
+	distanceThreshold = stof(keyvalueMap["distanceThreshold"]);
+	cloudSizeRejection = stof(keyvalueMap["cloudSizeRejection"]);
+	sizeSmallClouds = stoi(keyvalueMap["sizeSmallClouds"]);
+	isStepByStep = stoi(keyvalueMap["isStepByStep"]);
+	useLogs = stoi(keyvalueMap["useLogs"]);
+	typeOfTest = keyvalueMap["typeOfTest"];
+
+	db_add = keyvalueMap["db_add"];
+	db_user = keyvalueMap["db_user"];
+	db_pass = keyvalueMap["db_pass"];
+	db_name = keyvalueMap["db_name"];
+
+	showIterVals = stoi(keyvalueMap["showIterVals"]);
+	showSceneSize = stoi(keyvalueMap["showSceneSize"]);
+	pcl::console::print_highlight("Loaded values from text file!\n");
+}
 
 /*ALL OF BELOW ARE TRIAL ONLY NOT MAIN CODE HOHOHOHO*/
 
 
 
+void Recognizer::centerCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud) {
 
+	Eigen::Vector4f centroid;
+	pcl::compute3DCentroid(*cloud, centroid);
+	std::cout << "Centroid: " << centroid << std::endl;
+
+	Eigen::Affine3f tMatrix = Eigen::Affine3f::Identity();
+	tMatrix.translate(centroid.head<3>());
+	//pcl::getTransformation(0, 0, 0, 0, 0, 0, tMatrix);
+
+	pcl::transformPointCloud(*cloud, *cloud, tMatrix.inverse());
+}
 
 void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved) {
 	std::string stepfile = "";
@@ -867,9 +909,6 @@ void Recognizer::getCloudToCompare(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr saved
 	std::cout << "Obtained cloud " << saved->size() << std::endl;
 	centerCloud(saved);
 }
-
-
-
 
 void Recognizer::computePointNormals(pcl::PointCloud<pcl::PointNormal>::Ptr inputCloud, float val) {
 	pcl::NormalEstimationOMP<pcl::PointNormal, pcl::PointNormal> norm_est;
@@ -930,26 +969,7 @@ void Recognizer::findCorrespondences() {
 	}
 	std::cout << "Correspondences found: " << corrs->size() << std::endl;
 }
-/**void Recognizer::clusterCorrespondences(float binSize, float thresh) {
-	std::vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Matrix4f> > rototranslations;
-	std::vector < pcl::Correspondences > clustered_corrs;
-	pcl::GeometricConsistencyGrouping<pcl::PointXYZRGBA, pcl::PointXYZRGBA> gc_clusterer;
-	gc_clusterer.setGCSize(binSize);
-	gc_clusterer.setGCThreshold(thresh);
 
-	gc_clusterer.setInputCloud(model_keypoints);
-	gc_clusterer.setSceneCloud(scene_keypoints);
-	gc_clusterer.setModelSceneCorrespondences(corrs);
-
-	//gc_clusterer.cluster (clustered_corrs);
-	std::cout << "Recognize clusters " << std::endl;
-	gc_clusterer.recognize(rototranslations, clustered_corrs);
-
-	
-	//std::cout << "Model instances found: " << rototranslations.size() << std::endl;
-
-}
-/**/
 void Recognizer::computeReferenceFrames(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr keypoints, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr inputCloud, pcl::PointCloud<pcl::ReferenceFrame>::Ptr rf, float radius) {
 	pcl::BOARDLocalReferenceFrameEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::ReferenceFrame> rf_est;
 	rf_est.setFindHoles(true);
@@ -979,7 +999,6 @@ void Recognizer::clusterCorrespondences(float binSize, float thresh) {
 	std::cout << "Model instances found: " << rototranslations.size () << std::endl;
 
 }
-
 
 void Recognizer::estimatePose()
 {
@@ -1086,7 +1105,6 @@ void Recognizer::convertRGBAtoPointNormal(pcl::PointCloud<pcl::PointXYZRGBA>::Pt
 	}
 }
 
-
 void Recognizer::print4x4Matrix(const Eigen::Matrix4f & matrix) {
 	printf("Rotation matrix :\n");
 	printf("    | %6.3f %6.3f %6.3f | \n", matrix(0, 0), matrix(0, 1), matrix(0, 2));
@@ -1104,51 +1122,13 @@ void Recognizer::lowerVisibleArea(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr  cloud
 	pass.filter(*cloud);
 }
 
-void Recognizer::initValuesFromFile() {
-	ifstream in("config.txt");
-	string line;
-	std::map<std::string, std::string> keyvalueMap;
-	while (getline(in, line)) {
-		//do something with the line
-		if (line.at(0) != '#') {
-			vector<string> vectorLine = split(line, '=');
-			keyvalueMap[vectorLine[0]] = vectorLine[1];
-		}
-	}
+void Recognizer::init()
+{
+	corrs = boost::make_shared<pcl::Correspondences>();
 
-	useServer = stoi(keyvalueMap["useServer"]);
-
-	if (!useServer) {
-		selectedModel = stoi(keyvalueMap["selectedModel"]);
-		maxSteps = stoi(keyvalueMap["maxSteps"]);
-	}
-
-	currStep = stoi(keyvalueMap["currStep"]);
-	acceptanceThreshold = stof(keyvalueMap["acceptanceThreshold"]);
-	threshForNormal = acceptanceThreshold;
-	numOfIteration = stoi(keyvalueMap["numOfIteration"]);
-	minOccurPercent = stof(keyvalueMap["minOccurPercent"]);
-	minOccurPercentForSmall = stof(keyvalueMap["minOccurPercentForSmall"]);
-	lowerThreshForSmall = stoi(keyvalueMap["lowerThreshForSmall"]);
-	threshForSmall = stof(keyvalueMap["threshForSmall"]);
-	numOfCandidates = stoi(keyvalueMap["numOfCandidates"]);
-	cloudSizePercent = stof(keyvalueMap["cloudSizePercent"]);
-	distanceThreshold = stof(keyvalueMap["distanceThreshold"]);
-	cloudSizeRejection = stof(keyvalueMap["cloudSizeRejection"]);
-	sizeSmallClouds = stoi(keyvalueMap["sizeSmallClouds"]);
-	isStepByStep = stoi(keyvalueMap["isStepByStep"]);
-	useLogs = stoi(keyvalueMap["useLogs"]);
-	typeOfTest = keyvalueMap["typeOfTest"];
-
-	db_add = keyvalueMap["db_add"];
-	db_user = keyvalueMap["db_user"];
-	db_pass = keyvalueMap["db_pass"];
-	db_name = keyvalueMap["db_name"];
-
-	showIterVals = stoi(keyvalueMap["showIterVals"]);
-	showSceneSize = stoi(keyvalueMap["showSceneSize"]);
-	pcl::console::print_highlight("Loaded values from text file!\n");
 }
+
+
 
 float Recognizer::round4f(float f) {
 	return roundf(f * 10000) / 10000;
